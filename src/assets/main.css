@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 引入中文标题字体 */
+@font-face {
+  font-family: 'ZNtitle';
+  src: url('@/assets/font/ZNtitle.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* 引入英文标题字体 */
+@font-face {
+  font-family: 'ENtitle';
+  src: url('@/assets/font/ENtitle.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
