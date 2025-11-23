@@ -136,6 +136,9 @@
           <el-input :value="userInfo?.comprehensiveScore" disabled></el-input>
         </el-form-item>
         
+        <el-form-item label="外语水平">
+          <el-input :value="userInfo?.foreignLanguageLevel || '未设置'" disabled></el-input>
+        </el-form-item>
       </el-form>
       
       <template #footer>

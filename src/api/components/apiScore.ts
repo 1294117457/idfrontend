@@ -49,8 +49,10 @@ export const submitBonusApplication = async (data: SubmitBonusApplicationDto, fi
   return response.data
 }
 
-export const getMyRecords = async () => {
-  const response = await apiClient.get('/api/student-bonus/my-records')
+export const getMyRecords = async (studentId: string) => {
+  const response = await apiClient.get('/api/student-bonus/my-records', {
+    params: { studentId }  // ✅ 使用查询参数
+  })
   return response.data
 }
 
@@ -61,5 +63,37 @@ export const calculateScore = async () => {
 
 export const cancelBonusRecord = async (recordId: string) => {
   const response = await apiClient.delete(`/api/student-bonus/cancel/${recordId}`)
+  return response.data
+}
+/**
+ * ✅ 获取文件预览URL
+ */
+export const getFilePreviewUrl = async (fileUrl: string) => {
+  const response = await apiClient.get('/api/student-bonus/file/preview', {
+    params: { fileUrl }
+  })
+  return response.data  // ✅ 返回完整响应数据
+}
+
+
+/**
+ * ✅ 获取文件URL (预览/下载统一接口)
+ * @param fileUrl 文件URL
+ * @param type 0=预览, 1=下载
+ */
+export const getFileUrl = async (fileUrl: string, type: number = 0) => {
+  const response = await apiClient.get('/api/student-bonus/file/url', {
+    params: { fileUrl, type }
+  })
+  return response.data
+}
+
+/**
+ * ✅ 批量获取文件URL
+ */
+export const getFileUrls = async (fileUrls: string[]) => {
+  const response = await apiClient.post('/api/student-bonus/files/urls', {
+    fileUrls
+  })
   return response.data
 }

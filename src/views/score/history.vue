@@ -1,4 +1,3 @@
-<!-- filepath: d:\XMU\3UP\交互设计\code\ID-frontend\src\views\score\history.vue -->
 <template>
   <div class="min-h-screen flex flex-col gap-5 p-4">
     <el-card>
@@ -124,20 +123,21 @@
           </el-descriptions-item>
         </el-descriptions>
 
-        <!-- ✅ 证明文件预览 -->
-        <div v-if="selectedRecord.proofFiles" class="mt-4">
+        <!-- ✅ 使用 FileUtil 组件预览证明文件 -->
+        <div v-if="selectedRecord.proofFiles && parseProofFiles(selectedRecord.proofFiles).length > 0" class="mt-4">
           <el-divider content-position="left">证明文件</el-divider>
-          <div class="flex flex-wrap gap-2">
-            <el-image
-              v-for="(file, index) in parseProofFiles(selectedRecord.proofFiles)"
-              :key="index"
-              :src="file"
-              :preview-src-list="parseProofFiles(selectedRecord.proofFiles)"
-              :initial-index="index"
-              fit="cover"
-              class="w-24 h-24 rounded cursor-pointer border"
-            />
-          </div>
+          <FileUtil
+            v-model="previewFileList"
+            :show-file-list="true"
+            :show-preview-button="true"
+            :show-delete-button="false"
+            :show-download-in-dialog="true"
+            :disabled="true"
+            :icon-size="20"
+            upload-text=""
+            :show-tip="false"
+            :get-file-url="handleGetFileUrl"
+          />
         </div>
 
         <!-- ✅ 审核记录展示 -->
@@ -195,23 +195,51 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getMyRecords, cancelBonusRecord } from '@/api/components/apiScore'
+import type { UploadUserFile } from 'element-plus'
+import { getMyRecords, cancelBonusRecord, getFileUrl } from '@/api/components/apiScore'
+import { useUserStore } from '@/stores/profile'
+// ✅ 导入 FileUtil 组件
+import FileUtil from '@/components/fileUtil.vue'
+
+const userStore = useUserStore()
 
 const myRecords = ref<any[]>([])
 const showDetailDialog = ref(false)
 const selectedRecord = ref<any>(null)
-
+// ✅ 文件预览列表
+const previewFileList = ref<UploadUserFile[]>([])
+// ✅ 获取文件URL (简化版)
+const handleGetFileUrl = async (fileUrl: string, type: number) => {
+  try {
+    const response = await getFileUrl(fileUrl, type)
+    console.log('✅ 获取文件URL响应:', response)
+    return response
+  } catch (error) {
+    console.error('❌ 获取文件链接失败:', error)
+    throw error
+  }
+}
 // 加载我的记录
 const loadMyRecords = async () => {
   try {
-    const response = await getMyRecords()
+    // ✅ 确保 userInfo 和 studentId 存在
+    if (!userStore.userInfo?.studentId) {
+      ElMessage.error('请先完善学生信息')
+      return
+    }
+    
+    const response = await getMyRecords(userStore.userInfo.studentId)
+    
+    console.log('✅ API 响应:', response)  // ✅ 添加调试日志
+    
     if (response.code === 200) {
       myRecords.value = response.data || []
+      console.log('✅ 加载到的记录数:', myRecords.value.length)
     } else {
       ElMessage.error('加载记录失败: ' + (response.msg || '未知错误'))
     }
   } catch (error) {
-    console.error('加载记录失败:', error)
+    console.error('❌ 加载记录失败:', error)
     ElMessage.error('加载记录失败')
   }
 }
@@ -219,7 +247,41 @@ const loadMyRecords = async () => {
 // ✅ 查看详情
 const handleViewDetail = (row: any) => {
   selectedRecord.value = { ...row }
+  
+  // ✅ 将证明文件转换为 UploadUserFile 格式
+  const files = parseProofFiles(row.proofFiles)
+  previewFileList.value = files.map((url: string, index: number) => ({
+    name: `证明文件${index + 1}.${getFileExtFromUrl(url)}`,
+    url: url,
+    uid: Date.now() + index,
+    status: 'success' as const
+  }))
+  
   showDetailDialog.value = true
+}
+
+// ✅ 从 URL 中提取文件扩展名
+const getFileExtFromUrl = (url: string): string => {
+  try {
+    const parts = url.split('.')
+    return parts[parts.length - 1] || 'file'
+  } catch {
+    return 'file'
+  }
+}
+
+// ✅ 获取文件预览URL
+const handleGetPreviewUrl = async (fileUrl: string) => {
+  try {
+    const response = await getFilePreviewUrl(fileUrl)
+    if (response.code === 200) {
+      return response.data.url
+    }
+    throw new Error('获取预览链接失败')
+  } catch (error) {
+    console.error('❌ 获取预览链接失败:', error)
+    throw error
+  }
 }
 
 // 取消申请
@@ -240,7 +302,11 @@ const handleCancelRecord = async (recordId: string, status: number) => {
       }
     )
     
-    const response = await cancelBonusRecord(recordId)
+    // ✅ 确保传递正确的 recordId 类型
+    const response = await cancelBonusRecord(recordId.toString())
+    
+    console.log('✅ 撤销响应:', response)  // ✅ 添加调试日志
+    
     if (response.code === 200) {
       ElMessage.success('取消成功')
       showDetailDialog.value = false
@@ -250,7 +316,7 @@ const handleCancelRecord = async (recordId: string, status: number) => {
     }
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('取消申请失败:', error)
+      console.error('❌ 取消申请失败:', error)
       ElMessage.error('取消申请失败')
     }
   }
@@ -291,7 +357,7 @@ const formatRuleValues = (json: string) => {
 }
 
 // ✅ 解析证明文件
-const parseProofFiles = (json: string) => {
+const parseProofFiles = (json: string): string[] => {
   if (!json) return []
   try {
     const files = JSON.parse(json)
@@ -367,5 +433,10 @@ onMounted(() => {
 <style scoped>
 :deep(.el-progress__text) {
   font-size: 12px !important;
+}
+
+/* ✅ 隐藏上传按钮 */
+:deep(.el-upload--picture-card) {
+  display: none !important;
 }
 </style>

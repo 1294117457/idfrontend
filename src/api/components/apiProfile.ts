@@ -33,26 +33,26 @@ export const bindStudentInfo = async (studentData: StudentItem) => {
 
 // 查询用户完整信息===
 export interface UserInfoItem {
-  userId: number;
-  username: string;
-  phone: string;
-  email: string;
-
-  studentId: string;
-  studentEmail: string;
-  fullName: string;
-  enrollmentYear: number;
-  graduationYear: number;
-  major: string;
-  gpa: number;
-  academicScore: number;
-  specialtyScore: number;
-  comprehensiveScore: number;
-  foreignLanguageLevel: string;
-  disciplinaryViolations: number;
-  failedCourses: number;
-  specialSkillsRemark: string;
-  isConfirmed: boolean; // ✅ 添加确认状态
+  userId: number
+  username: string
+  phone?: string
+  email: string
+  studentId: string
+  studentEmail: string
+  fullName: string
+  enrollmentYear: number
+  graduationYear: number
+  major: string
+  gpa?: number
+  academicScore: number
+  specialtyScore: number
+  comprehensiveScore: number
+  isConfirmed: boolean
+  
+  // ✅ 新增需求申请字段
+  demandValue?: string
+  demandFiles?: string
+  
 }
 
 export const getUserInfo = async () => {

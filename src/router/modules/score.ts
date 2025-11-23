@@ -7,6 +7,6 @@ export default {
   meta: { title: '成绩计算', icon: SettingIcon, sort: 2 },
   children: [
     { path: 'index', component: ScoreIndex, meta: { title: '加分申请', sort: 0 } },
-    { path: 'evaluation', component: Evaluation, meta: { title: '综合申请', sort: 1 } },
+    { path: 'evaluation', component: Evaluation, meta: { title: '申请记录', sort: 1 } },
   ],
 }
