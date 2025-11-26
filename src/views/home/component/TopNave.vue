@@ -29,6 +29,8 @@
   <script lang="ts" setup>
 import router from '@/router';
 import { ElMessage } from 'element-plus';
+import { useUserStore } from '@/stores/profile'  // ✅ 添加导入
+const userStore = useUserStore()
 
   
 
@@ -42,6 +44,7 @@ const handleCommand = (command: string) => {
 
 
 const logout = () => {
+  userStore.clearAll()  // 这个方法会清除 userInfo 和 tokens
   // ✅ 清除所有 token
   localStorage.removeItem('access_token')
   localStorage.removeItem('refresh_token')

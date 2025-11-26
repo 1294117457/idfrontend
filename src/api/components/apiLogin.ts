@@ -92,3 +92,23 @@ export const sentEmailCode = async (email: string) => {
     throw new Error('邮箱验证码请求失败,请稍后重试');
   }
 }
+
+// 获取验证码图片
+// ✅ 验证码相关接口
+export interface CaptchaResponse {
+  captchaId: string;
+  base64: string;
+}
+
+// ✅ 获取验证码
+export const getCaptcha = async (): Promise<CaptchaResponse> => {
+  try {
+    const response = await axios.get<CaptchaResponse>(
+      `${apiBaseUrl}/api/authserver/captcha/generate`
+    );
+    return response.data;
+  } catch (error) {
+    console.error('获取验证码失败:', error);
+    throw new Error('获取验证码失败');
+  }
+};

@@ -5,11 +5,11 @@
       <div class="flex items-center justify-between mb-4">
         <h4 class="text-[20px] font-bold text-gray-800">加分项申请</h4>
         <div>
-          <el-tag type="primary" size="large">学术专长: {{ scoreInfo.academicScore }}/12分</el-tag>
-          <el-tag type="success" size="large" class="ml-2">综合表现: {{ scoreInfo.comprehensiveScore }}/8分</el-tag>
-          <el-tag type="warning" size="large" class="ml-2">学业成绩: {{ scoreInfo.academicGradeScore }}/80分</el-tag>
-          <el-tag :type="scoreInfo.isQualified ? 'success' : 'danger'" size="large" class="ml-2">
-            总分: {{ scoreInfo.totalScore }}/100分 {{ scoreInfo.isQualified ? '✓' : '✗' }}
+          <el-tag type="primary" size="large">学术专长: {{ userStore.userInfo?.specialtyScore }}/12分</el-tag>
+          <el-tag type="success" size="large" class="ml-2">综合表现: {{ userStore.userInfo?.comprehensiveScore }}/8分</el-tag>
+          <el-tag type="warning" size="large" class="ml-2">学业成绩: {{ userStore.userInfo?.academicScore  }}/80分</el-tag>
+          <el-tag type="danger" size="large" class="ml-2">
+            总分: {{ userStore.userInfo?.academicScore+userStore.userInfo?.comprehensiveScore+userStore.userInfo?.specialtyScore }}/100分 
           </el-tag>
         </div>
       </div>
@@ -235,7 +235,6 @@ import {
   getAvailableTemplates,
   getTemplateDetail,
   submitBonusApplication,
-  calculateScore,
   getFilePreviewUrl
 } from '@/api/components/apiScore'
 import { useUserStore } from '@/stores/profile'
@@ -265,14 +264,6 @@ const academicGradeTemplates = computed(() =>
   allTemplates.value.filter(t => t.scoreType === 2)
 )
 
-// ==================== 分数统计 ====================
-const scoreInfo = reactive({
-  academicScore: 0,
-  comprehensiveScore: 0,
-  academicGradeScore: 0,
-  totalScore: 0,
-  isQualified: false
-})
 
 // ==================== 申请表单数据 ====================
 const selectedTemplate = ref<any>(null)
@@ -332,20 +323,6 @@ const loadTemplates = async () => {
   } catch (error) {
     console.error('加载模板失败:', error)
     ElMessage.error('加载模板失败')
-  }
-}
-
-/**
- * 加载成绩统计
- */
-const loadScore = async () => {
-  try {
-    const response = await calculateScore()
-    if (response.code === 200) {
-      Object.assign(scoreInfo, response.data)
-    }
-  } catch (error) {
-    console.error('加载成绩统计失败:', error)
   }
 }
 
@@ -678,7 +655,6 @@ const handleSubmitApply = async () => {
     const files = fileList.value
       .filter(item => item.raw)
       .map(item => item.raw as File)
-
     submitting.value = true
     const response = await submitBonusApplication(submitData, files)
     
@@ -689,8 +665,6 @@ const handleSubmitApply = async () => {
       // 重置表单
       resetApplyForm()
       
-      // 重新加载分数
-      await loadScore()
     } else {
       ElMessage.error('提交失败: ' + (response.msg || '未知错误'))
     }
@@ -718,7 +692,6 @@ const resetApplyForm = () => {
 // ==================== 生命周期 ====================
 onMounted(() => {
   loadTemplates()
-  loadScore()
 })
 </script>
 

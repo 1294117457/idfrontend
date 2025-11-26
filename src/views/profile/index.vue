@@ -14,13 +14,12 @@
         <el-form-item label="学生邮箱">
           <div class="flex gap-2 w-full">
             <el-input v-model="bindForm.email" placeholder="请输入学生邮箱(以@stu.xmu.edu.cn结尾)"></el-input>
+            <el-input v-model="bindForm.code" placeholder="请输入验证码"></el-input>
+
             <el-button @click="sendCode" :disabled="countdown > 0">
               {{ countdown > 0 ? `${countdown}秒后重试` : '发送验证码' }}
             </el-button>
           </div>
-        </el-form-item>
-        <el-form-item label="验证码">
-          <el-input v-model="bindForm.code" placeholder="请输入验证码"></el-input>
         </el-form-item>
         <el-form-item label="姓名">
           <el-input v-model="bindForm.fullName" placeholder="请输入姓名"></el-input>
@@ -223,7 +222,7 @@ const sendCode = async () => {
     if (response.code === 200) {
       ElMessage.success('验证码已发送')
       // 开始倒计时
-      countdown.value = 60
+      countdown.value = 600
       const timer = setInterval(() => {
         countdown.value--
         if (countdown.value <= 0) {
