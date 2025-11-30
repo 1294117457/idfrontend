@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import { getUserInfo as fetchUserInfo } from '@/api/components/apiProfile'
+import { getUserInfo } from '@/api/components/apiProfile'
 
 // 用户完整信息接口 (包含学生信息)
 export interface UserInfo {
@@ -45,7 +45,7 @@ export const useUserStore = defineStore('user', () => {
    */
   const fetchUserData = async (): Promise<boolean> => {
     try {
-      const response = await fetchUserInfo()
+      const response = await getUserInfo()
       if (response.code === 200) {
         userInfo.value = response.data
         console.log('✅ 用户信息获取成功:', response.data)

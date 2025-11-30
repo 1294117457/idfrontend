@@ -691,7 +691,10 @@ const resetApplyForm = () => {
 
 // ==================== 生命周期 ====================
 onMounted(() => {
+  userStore.fetchUserData();
+  // userStore.updateUserInfo();
   loadTemplates()
+  console.log(userStore.userInfo);
 })
 </script>
 

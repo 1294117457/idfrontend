@@ -222,6 +222,7 @@ const handleGetFileUrl = async (fileUrl: string, type: number) => {
 // 加载我的记录
 const loadMyRecords = async () => {
   try {
+    console.log(userStore)
     // ✅ 确保 userInfo 和 studentId 存在
     if (!userStore.userInfo?.studentId) {
       ElMessage.error('请先完善学生信息')

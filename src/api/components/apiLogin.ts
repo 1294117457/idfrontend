@@ -112,3 +112,83 @@ export const getCaptcha = async (): Promise<CaptchaResponse> => {
     throw new Error('获取验证码失败');
   }
 };
+
+// ========== 微信登录相关接口 ==========
+
+/** 微信登录二维码响应 */
+export interface WechatQrCodeResponse {
+  qrCode: string    // base64格式的二维码图片
+  state: string     // 状态码，用于轮询
+}
+
+/** 微信登录状态响应 */
+export interface WechatLoginStatusResponse {
+  accessToken?: string
+  refreshToken?: string
+  openId?: string
+  nickname?: string
+  headImgUrl?: string
+  status?: 'pending_bind' | 'success' // 登录状态
+  userId?: number
+}
+
+/** 微信绑定请求 */
+export interface WechatBindRequest {
+  state: string
+  username: string
+  password: string
+}
+
+/** 获取微信登录二维码 */
+export const getWechatLoginQrCode = async (): Promise<WechatQrCodeResponse> => {
+  try {
+    const response = await axios.get<{
+      code: number
+      msg: string
+      data: string
+    }>(`${apiBaseUrl}/api/wechat/open/qrcode`)
+    
+    if (response.data.code === 200) {
+      return JSON.parse(response.data.data)
+    } else {
+      throw new Error(response.data.msg || '获取二维码失败')
+    }
+  } catch (error) {
+    console.error('获取微信二维码失败:', error)
+    throw new Error('获取微信二维码失败')
+  }
+}
+
+/** 轮询检查微信登录状态 */
+export const checkWechatLoginStatus = async (state: string): Promise<WechatLoginStatusResponse | null> => {
+  try {
+    const response = await axios.get<{
+      code: number
+      msg: string
+      data: string
+    }>(`${apiBaseUrl}/api/wechat/open/check-login`, {
+      params: { state }
+    })
+    
+    if (response.data.code === 200) {
+      return JSON.parse(response.data.data)
+    } else if (response.data.code === 202) {
+      return null // 等待扫码
+    } else {
+      throw new Error(response.data.msg || '检查登录状态失败')
+    }
+  } catch (error) {
+    console.error('检查微信登录状态失败:', error)
+    throw new Error('检查微信登录状态失败')
+  }
+}
+
+/** 绑定微信到现有账号 */
+export const bindWechatToAccount = async (bindData: WechatBindRequest): Promise<resType> => {
+  try {
+    const response = await axios.post<resType>(`${apiBaseUrl}/api/wechat/open/bind-account`, bindData)
+    return response.data
+  } catch (error) {
+    throw new Error('绑定账号失败,请稍后重试')
+  }
+}

@@ -6,7 +6,7 @@
             <!-- 头像 -->
             <div class="flex items-center  text-gray-700 dark:text-white hover:text-blue-500 dark:hover:text-blue-300 transition outline-none gap-1">
               <img src="@/assets/images/avatar.png" alt="头像" class="w-[2rem] rounded-full " />
-              <span class="text-[1.5rem]">周晨辉</span> <!-- 替换为实际用户名 -->
+              <span class="text-[1.5rem]">{{userStore.userInfo?.fullName||'游客'}}</span> <!-- 替换为实际用户名 -->
             </div>
             <!-- 账户名称 -->
             <template #dropdown>
