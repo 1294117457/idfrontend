@@ -1,461 +1,457 @@
 <template>
-  <div class="file-upload-preview">
+  <div class="file-util">
+    <!-- ✅ 上传区域 -->
     <el-upload
-      v-model:file-list="localFileList"
-      :list-type="listType"
-      :auto-upload="false"
-      :on-preview="handlePreview"
+      v-if="showUploadButton"
+      ref="uploadRef"
+      :file-list="displayFileList"
+      :before-upload="handleBeforeUpload"
+      :http-request="handleCustomUpload"
       :on-remove="handleRemove"
       :limit="limit"
       :accept="accept"
-      :disabled="disabled"
-      :class="uploadClass"
-      :show-file-list="showFileList"
+      :multiple="multiple"
+      :disabled="disabled || uploading"
+      list-type="text"
+      class="upload-container"
     >
-      <template #default>
-        <div class="upload-placeholder">
-          <el-icon :size="iconSize"><Plus /></el-icon>
-          <div class="text-xs mt-1">{{ uploadText }}</div>
-        </div>
-      </template>
-      <template #file="{ file }">
-        <div class="relative w-full h-full">
-          <img 
-            v-if="file.raw && isImageFile(file.raw)" 
-            :src="file.url" 
-            class="w-full h-full object-cover" 
-            alt=""
-          />
-          <div v-else class="flex flex-col items-center justify-center h-full p-1">
-            <el-icon :size="iconSize" :color="getFileIconColor(file.name)">
-              <component :is="getFileIcon(file.name)" />
-            </el-icon>
-            <span class="text-[10px] text-center break-all line-clamp-2 mt-1">
-              {{ truncateFileName(file.name, 10) }}
-            </span>
-            <span class="text-[8px] text-gray-400">
-              {{ getFileExtension(file.name) }}
-            </span>
-          </div>
-          <span class="el-upload-list__item-actions">
-            <span 
-              v-if="showPreviewButton" 
-              class="el-upload-list__item-preview" 
-              @click="handlePreview(file)"
-            >
-              <el-icon><ZoomIn /></el-icon>
-            </span>
-            <span 
-              v-if="showDeleteButton && !disabled" 
-              class="el-upload-list__item-delete" 
-              @click="handleRemove(file)"
-            >
-              <el-icon><Delete /></el-icon>
-            </span>
-          </span>
-        </div>
+      <el-button type="primary" :loading="uploading" :disabled="disabled">
+        <el-icon v-if="!uploading"><Upload /></el-icon>
+        {{ uploading ? '上传中...' : uploadText }}
+      </el-button>
+      <template #tip>
+        <div class="text-xs text-gray-400 mt-1">{{ tipText }}</div>
       </template>
     </el-upload>
-    <div v-if="showTip" class="text-xs text-gray-500 mt-1">
-      {{ tipText }}
+
+    <!-- ✅ 文件列表（只读模式或已上传文件） -->
+    <div v-if="fileItems.length > 0" class="file-list mt-2">
+      <div 
+        v-for="(file, index) in fileItems" 
+        :key="file.fileId"
+        class="file-item flex items-center justify-between p-2 bg-gray-50 rounded mb-2"
+      >
+        <div class="flex items-center gap-2 flex-1 min-w-0">
+          <el-icon class="text-gray-500"><Document /></el-icon>
+          <span class="text-sm truncate" :title="file.fileName">{{ file.fileName }}</span>
+          <!-- ✅ 显示文件类型标签 -->
+          <el-tag 
+            :type="getFileTypeTagColor(file.fileName)" 
+            size="small"
+          >
+            {{ getFileTypeLabel(file.fileName) }}
+          </el-tag>
+        </div>
+        <div class="flex gap-1 flex-shrink-0">
+          <!-- ✅ 只有 PDF 和图片才显示预览按钮 -->
+          <el-button 
+            v-if="showPreviewButton && canPreview(file.fileName)" 
+            type="primary" 
+            size="small" 
+            @click="handlePreview(file)"
+            :loading="previewingFileId === file.fileId"
+          >
+            预览
+          </el-button>
+          <el-button 
+            v-if="showDownloadButton" 
+            type="success" 
+            size="small" 
+            @click="handleDownload(file)"
+            :loading="downloadingFileId === file.fileId"
+          >
+            下载
+          </el-button>
+          <el-button 
+            v-if="showDeleteButton && !disabled" 
+            type="danger" 
+            size="small" 
+            @click="handleDeleteFile(index)"
+          >
+            删除
+          </el-button>
+        </div>
+      </div>
     </div>
 
-    <!-- ✅ 文件预览弹窗 (模仿知识库) -->
+    <!-- ✅ 空状态 -->
+    <el-empty 
+      v-if="!showUploadButton && fileItems.length === 0" 
+      description="暂无文件" 
+      :image-size="60"
+    />
+
+    <!-- ✅ 预览弹窗（只支持 PDF 和图片） -->
     <el-dialog 
       v-model="previewDialogVisible" 
-      :title="`文件预览 - ${currentPreviewFile.name}`" 
-      :width="dialogWidth"
+      :title="'文件预览 - ' + currentPreviewFileName"
+      width="85%" 
+      top="3vh"
       destroy-on-close
       @close="handlePreviewClose"
     >
-      <div v-if="previewLoading" class="flex justify-center items-center h-96">
-        <el-icon class="is-loading" :size="50"><Loading /></el-icon>
-        <span class="ml-2">加载中...</span>
-      </div>
-      <div v-else-if="previewError" class="flex justify-center items-center h-96">
-        <el-empty description="预览加载失败" />
-        <el-button @click="previewDialogVisible = false">关闭</el-button>
-      </div>
-      <div v-else class="h-[70vh]">
-        <!-- ✅ 修改 iframe 配置 -->
-        <iframe
-          v-if="previewUrl"
-          :src="previewUrl"
-          class="w-full h-full border-0"
-          sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
-          allowfullscreen
-          @load="handleIframeLoad"
-          @error="handleIframeError"
+      <div v-loading="previewLoading" class="preview-container">
+        <!-- ✅ PDF 预览 -->
+        <iframe 
+          v-if="currentPreviewType === 'pdf' && previewUrl && !previewLoading"
+          :src="previewUrl" 
+          class="preview-frame"
         />
-      </div>
-      
-      <template #footer>
-        <div class="flex justify-between items-center">
-          <!-- ✅ 添加新窗口打开按钮 -->
-          <div>
-            <el-button @click="openInNewTab" type="success">
-              <el-icon class="mr-1"><View /></el-icon>
-              新窗口打开
-            </el-button>
-            <el-button 
-              v-if="showDownloadInDialog" 
-              @click="handleDownload"
-              type="primary"
-            >
-              <el-icon class="mr-1"><Download /></el-icon>
-              下载
-            </el-button>
-          </div>
-          <el-button @click="previewDialogVisible = false">关闭</el-button>
+        
+        <!-- ✅ 图片预览 -->
+        <div 
+          v-else-if="currentPreviewType === 'image' && previewUrl && !previewLoading"
+          class="image-preview-container"
+        >
+          <img 
+            :src="previewUrl" 
+            alt="预览图片"
+            class="preview-image"
+          />
         </div>
-      </template>
+        
+        <!-- ✅ 加载中或无法预览 -->
+        <div v-else-if="!previewLoading" class="preview-fallback">
+          <el-icon :size="48" class="text-gray-300 mb-4"><Document /></el-icon>
+          <p class="text-gray-400">无法预览此文件类型</p>
+          <el-button type="primary" class="mt-4" @click="handleDownloadCurrent">
+            下载文件查看
+          </el-button>
+        </div>
+      </div>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, computed, watch } from 'vue'
+import { ElMessage } from 'element-plus'
+import { Upload, Document } from '@element-plus/icons-vue'
+import type { UploadRequestOptions, UploadUserFile } from 'element-plus'
 import { 
-  Plus, 
-  ZoomIn, 
-  Delete, 
-  Document, 
-  Folder,
-  Tickets,
-  Download,
-  Loading,
-  View  // ✅ 新增图标
-} from '@element-plus/icons-vue'
-import type { UploadFile, UploadUserFile } from 'element-plus'
-import { useRouter } from 'vue-router'
+  uploadProofFile, 
+  getFilePreviewById, 
+  downloadFileById,
+  type ProofFileItem
+} from '@/api/components/apiScore'
 
-interface Props {
-  modelValue: UploadUserFile[]
+// ✅ 文件项接口
+export interface FileItem {
+  fileId: number
+  fileName: string
+}
+
+// ==================== Props ====================
+const props = withDefaults(defineProps<{
+  modelValue?: FileItem[]
   limit?: number
   accept?: string
-  listType?: 'text' | 'picture' | 'picture-card'
+  multiple?: boolean
   disabled?: boolean
-  uploadText?: string
-  showTip?: boolean
-  tipText?: string
-  iconSize?: number
-  uploadClass?: string
-  dialogWidth?: string
-  showFileList?: boolean
+  showUploadButton?: boolean
   showPreviewButton?: boolean
+  showDownloadButton?: boolean
   showDeleteButton?: boolean
-  showDownloadInDialog?: boolean
-  useWordPreviewPage?: boolean
-  wordPreviewPath?: string
-  // ✅ 获取文件URL的函数 (type: 0=预览, 1=下载)
-  getFileUrl?: (fileUrl: string, type: number) => Promise<any>
-}
-
-interface Emits {
-  (e: 'update:modelValue', value: UploadUserFile[]): void
-  (e: 'preview', file: UploadFile): void
-  (e: 'remove', file: UploadFile): void
-  (e: 'download', file: { url: string; name: string }): void
-}
-
-const props = withDefaults(defineProps<Props>(), {
+  uploadText?: string
+  tipText?: string
+  fileCategory?: string
+  filePurpose?: string
+}>(), {
+  modelValue: () => [],
   limit: 5,
-  accept: '.jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.html',
-  listType: 'picture-card',
+  accept: '.jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx',
+  multiple: true,
   disabled: false,
-  uploadText: '上传文件',
-  showTip: true,
-  tipText: '支持格式: 图片、PDF、Word、Excel、文本文件,最多5个文件',
-  iconSize: 24,
-  uploadClass: '',
-  dialogWidth: '80%',
-  showFileList: true,
+  showUploadButton: true,
   showPreviewButton: true,
+  showDownloadButton: true,
   showDeleteButton: true,
-  showDownloadInDialog: true,
-  useWordPreviewPage: false,
-  wordPreviewPath: '/word'
+  uploadText: '上传文件',
+  tipText: '支持常见文档和图片格式，单个文件不超过10MB',
+  fileCategory: 'SCORE_PROOF',
+  filePurpose: '证明材料'
 })
 
-const emit = defineEmits<Emits>()
-const router = useRouter()
+// ==================== Emits ====================
+const emit = defineEmits<{
+  (e: 'update:modelValue', value: FileItem[]): void
+  (e: 'upload-success', file: FileItem): void
+  (e: 'upload-error', error: Error): void
+  (e: 'delete', file: FileItem, index: number): void
+}>()
 
-const localFileList = ref<UploadUserFile[]>([])
+// ==================== 状态 ====================
+const uploading = ref(false)
 const previewDialogVisible = ref(false)
-const currentPreviewFile = ref<{ url: string; name: string; downloadUrl: string }>({ 
-  url: '', 
-  name: '',
-  downloadUrl: ''
-})
 const previewUrl = ref('')
 const previewLoading = ref(false)
-const previewError = ref(false)
+const previewingFileId = ref<number | null>(null)
+const downloadingFileId = ref<number | null>(null)
 
-watch(() => props.modelValue, (val) => {
-  localFileList.value = val
-}, { immediate: true })
+// ✅ 预览相关状态（移除 docx）
+const currentPreviewType = ref<'pdf' | 'image' | 'unknown'>('unknown')
+const currentPreviewFileName = ref('')
+const currentPreviewFile = ref<FileItem | null>(null)
 
-watch(localFileList, (val) => {
-  emit('update:modelValue', val)
+// ✅ 内部文件列表
+const fileItems = ref<FileItem[]>([...props.modelValue])
+
+// ✅ 用于 el-upload 显示的文件列表
+const displayFileList = computed<UploadUserFile[]>(() => {
+  return fileItems.value.map((item) => ({
+    name: item.fileName,
+    uid: item.fileId,
+    status: 'success' as const,
+    url: ''
+  }))
+})
+
+// ✅ 监听 props 变化
+watch(() => props.modelValue, (newVal) => {
+  fileItems.value = [...newVal]
 }, { deep: true })
 
-const isImageFile = (file: File): boolean => {
-  return file.type.startsWith('image/')
-}
+// ==================== 文件类型判断 ====================
 
+// ✅ 获取文件扩展名（小写）
 const getFileExtension = (fileName: string): string => {
-  return fileName.toLowerCase().split('.').pop()?.toUpperCase() || ''
+  if (!fileName) return ''
+  const lastDot = fileName.lastIndexOf('.')
+  if (lastDot === -1) return ''
+  return fileName.substring(lastDot).toLowerCase()
 }
 
-const truncateFileName = (fileName: string, maxLength: number = 10): string => {
-  const lastDotIndex = fileName.lastIndexOf('.')
-  if (lastDotIndex === -1) {
-    return fileName.length <= maxLength ? fileName : fileName.substring(0, maxLength) + '...'
+// ✅ 判断是否可以预览（只支持 PDF 和图片）
+const canPreview = (fileName: string): boolean => {
+  const ext = getFileExtension(fileName)
+  const previewableExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
+  return previewableExtensions.includes(ext)
+}
+
+// ✅ 获取预览类型（移除 docx）
+const getPreviewType = (fileName: string): 'pdf' | 'image' | 'unknown' => {
+  const ext = getFileExtension(fileName)
+  
+  if (ext === '.pdf') return 'pdf'
+  if (['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].includes(ext)) return 'image'
+  
+  return 'unknown'
+}
+
+// ✅ 获取文件类型标签
+const getFileTypeLabel = (fileName: string): string => {
+  const ext = getFileExtension(fileName)
+  const typeMap: Record<string, string> = {
+    '.pdf': 'PDF',
+    '.doc': 'Word',
+    '.docx': 'Word',
+    '.xls': 'Excel',
+    '.xlsx': 'Excel',
+    '.jpg': '图片',
+    '.jpeg': '图片',
+    '.png': '图片',
+    '.gif': '图片',
+    '.bmp': '图片',
+    '.webp': '图片',
+    '.txt': '文本'
   }
-  const nameWithoutExt = fileName.substring(0, lastDotIndex)
-  return nameWithoutExt.length <= maxLength ? nameWithoutExt : nameWithoutExt.substring(0, maxLength) + '...'
+  return typeMap[ext] || ext.toUpperCase().replace('.', '')
 }
 
-const getFileIcon = (fileName: string) => {
-  const ext = getFileExtension(fileName).toLowerCase()
-  const iconMap: Record<string, any> = {
-    pdf: Document,
-    doc: Tickets,
-    docx: Tickets,
-    xls: Folder,
-    xlsx: Folder,
-    ppt: Tickets,
-    pptx: Tickets,
-    txt: Document,
-    html: Document,
-    htm: Document,
-    zip: Folder,
-    rar: Folder
-  }
-  return iconMap[ext] || Document
-}
-
-const getFileIconColor = (fileName: string): string => {
-  const ext = getFileExtension(fileName).toLowerCase()
+// ✅ 获取文件类型标签颜色
+const getFileTypeTagColor = (fileName: string): string => {
+  const ext = getFileExtension(fileName)
   const colorMap: Record<string, string> = {
-    pdf: '#FF0000',
-    doc: '#2B579A',
-    docx: '#2B579A',
-    xls: '#217346',
-    xlsx: '#217346',
-    txt: '#666666',
-    html: '#E44D26',
-    htm: '#E44D26'
+    '.pdf': 'danger',
+    '.doc': 'primary',
+    '.docx': 'primary',
+    '.xls': 'success',
+    '.xlsx': 'success',
+    '.jpg': 'warning',
+    '.jpeg': 'warning',
+    '.png': 'warning',
+    '.gif': 'warning',
+    '.bmp': 'warning',
+    '.webp': 'warning'
   }
-  return colorMap[ext] || '#409EFF'
+  return colorMap[ext] || 'info'
 }
 
+// ==================== 上传相关 ====================
 
+const handleBeforeUpload = (file: File) => {
+  const isValidSize = file.size / 1024 / 1024 < 10
+  if (!isValidSize) {
+    ElMessage.error('文件大小不能超过 10MB')
+    return false
+  }
+  return true
+}
 
-// ✅ 下载文件 (模仿知识库)
-const handleDownload = async () => {
+const handleCustomUpload = async (options: UploadRequestOptions) => {
+  uploading.value = true
   try {
-    emit('download', { url: currentPreviewFile.value.downloadUrl, name: currentPreviewFile.value.name })
+    const result = await uploadProofFile(options.file as File)
     
-    let downloadUrl = currentPreviewFile.value.downloadUrl
-    
-    // ✅ 如果是远程文件,获取下载链接
-    if (!downloadUrl.startsWith('blob:') && props.getFileUrl) {
-      const response = await props.getFileUrl(currentPreviewFile.value.downloadUrl, 1) // type=1 下载
-      if (response.code === 200) {
-        downloadUrl = response.data.url
-      }
+    const newFile: FileItem = {
+      fileId: result.fileId,
+      fileName: result.fileName
     }
     
-    // ✅ 执行下载
-    const x = new XMLHttpRequest()
-    x.open('GET', downloadUrl, true)
-    x.responseType = 'blob'
-    x.onload = function () {
-      const blobUrl = window.URL.createObjectURL(x.response)
-      const a = document.createElement('a')
-      a.href = blobUrl
-      a.download = currentPreviewFile.value.name
-      a.click()
-      window.URL.revokeObjectURL(blobUrl)
-      ElMessage.success('下载成功')
-    }
-    x.onerror = function () {
-      ElMessage.error('下载失败')
-    }
-    x.send()
-  } catch (error) {
-    console.error('下载失败:', error)
-    ElMessage.error('下载失败')
-  }
-}
-
-const handleRemove = (file: UploadFile) => {
-  emit('remove', file)
-  const index = localFileList.value.indexOf(file as UploadUserFile)
-  if (index > -1) {
-    localFileList.value.splice(index, 1)
-  }
-}
-
-const handlePreviewClose = () => {
-  if (previewUrl.value && previewUrl.value.startsWith('blob:')) {
-    URL.revokeObjectURL(previewUrl.value)
-  }
-  previewUrl.value = ''
-  previewError.value = false
-}
-
-
-const iframeLoadError = ref(false)
-
-// ✅ iframe 加载成功
-const handleIframeLoad = () => {
-  console.log('✅ iframe 加载成功')
-  previewLoading.value = false
-  previewError.value = false
-  iframeLoadError.value = false
-}
-
-// ✅ iframe 加载失败
-const handleIframeError = () => {
-  console.error('❌ iframe 加载失败,可能是跨域问题')
-  previewError.value = true
-  iframeLoadError.value = true
-  
-  // ✅ 自动提示用户在新窗口打开
-  ElMessageBox.confirm(
-    '预览加载失败,可能是跨域限制。是否在新窗口中打开?',
-    '提示',
-    {
-      confirmButtonText: '新窗口打开',
-      cancelButtonText: '取消',
-      type: 'warning'
-    }
-  ).then(() => {
-    openInNewTab()
-  })
-}
-
-// ✅ 在新窗口打开文件
-const openInNewTab = () => {
-  if (previewUrl.value) {
-    window.open(previewUrl.value, '_blank')
-  }
-}
-
-// ✅ 修改预览处理逻辑
-const handlePreview = async (file: UploadFile) => {
-  emit('preview', file)
-  
-  try {
-    previewLoading.value = true
-    previewError.value = false
-    iframeLoadError.value = false
-    previewDialogVisible.value = true
+    fileItems.value.push(newFile)
+    emit('update:modelValue', [...fileItems.value])
+    emit('upload-success', newFile)
     
-    const fileExt = getFileExtension(file.name).toLowerCase()
-    const fileName = file.name
-    
-    currentPreviewFile.value = { url: '', name: fileName, downloadUrl: '' }
-    
-    // ✅ 本地文件预览
-    if (file.raw) {
-      const blobUrl = URL.createObjectURL(file.raw)
-      
-      if (fileExt === 'pdf') {
-        previewUrl.value = blobUrl
-        currentPreviewFile.value = { url: blobUrl, name: fileName, downloadUrl: blobUrl }
-      } else if (fileExt === 'docx' && props.useWordPreviewPage) {
-        router.push({ path: props.wordPreviewPath, query: { url: blobUrl } })
-        previewDialogVisible.value = false
-        return
-      } else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExt)) {
-        previewUrl.value = blobUrl
-        currentPreviewFile.value = { url: blobUrl, name: fileName, downloadUrl: blobUrl }
-      } else {
-        ElMessage.warning('此文件类型不支持预览,请下载后查看')
-        previewDialogVisible.value = false
-        return
-      }
-    } 
-    // ✅ 远程文件预览
-    else if (file.url && props.getFileUrl) {
-      const response = await props.getFileUrl(file.url, 0) // type=0 预览
-      
-      if (response.code !== 200) {
-        throw new Error('获取预览链接失败')
-      }
-      
-      const tempUrl = response.data.url
-      console.log('✅ 预览URL:', tempUrl)
-      
-      currentPreviewFile.value = { 
-        url: tempUrl, 
-        name: fileName,
-        downloadUrl: file.url
-      }
-      
-      // ✅ PDF和图片直接预览,其他类型提示新窗口打开
-      if (fileExt === 'pdf') {
-        previewUrl.value = tempUrl
-      } else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExt)) {
-        previewUrl.value = tempUrl
-      } else if (fileExt === 'docx' && props.useWordPreviewPage) {
-        router.push({ path: props.wordPreviewPath, query: { url: tempUrl } })
-        previewDialogVisible.value = false
-        return
-      } else {
-        // ✅ 不支持的类型直接在新窗口打开
-        ElMessageBox.confirm(
-          `此文件类型建议在新窗口打开`,
-          '提示',
-          {
-            confirmButtonText: '新窗口打开',
-            cancelButtonText: '取消',
-            type: 'info'
-          }
-        ).then(() => {
-          window.open(tempUrl, '_blank')
-        })
-        previewDialogVisible.value = false
-        return
-      }
-    }
+    ElMessage.success('上传成功')
   } catch (error: any) {
-    console.error('❌ 预览失败:', error)
-    previewError.value = true
-    ElMessage.error('获取预览链接失败，请重试')
+    ElMessage.error(error.message || '上传失败')
+    emit('upload-error', error)
+  } finally {
+    uploading.value = false
+  }
+}
+
+const handleRemove = (file: UploadUserFile) => {
+  const index = fileItems.value.findIndex(f => f.fileId === file.uid)
+  if (index > -1) {
+    const removed = fileItems.value.splice(index, 1)[0]
+    emit('update:modelValue', [...fileItems.value])
+    emit('delete', removed, index)
+  }
+}
+
+const handleDeleteFile = (index: number) => {
+  const removed = fileItems.value.splice(index, 1)[0]
+  emit('update:modelValue', [...fileItems.value])
+  emit('delete', removed, index)
+}
+
+// ==================== 预览相关（简化版，只支持 PDF 和图片） ====================
+
+const handlePreview = async (file: FileItem) => {
+  // ✅ 检查是否可预览
+  if (!canPreview(file.fileName)) {
+    ElMessage.warning('此文件类型不支持预览，请下载后查看')
+    return
+  }
+  
+  previewingFileId.value = file.fileId
+  previewLoading.value = true
+  currentPreviewFileName.value = file.fileName
+  currentPreviewFile.value = file
+  currentPreviewType.value = getPreviewType(file.fileName)
+  previewUrl.value = ''
+  previewDialogVisible.value = true
+  
+  try {
+    // ✅ PDF 和图片使用预签名 URL
+    const response = await getFilePreviewById(file.fileId, 60)
+    if (response.code === 200) {
+      previewUrl.value = response.data
+    } else {
+      ElMessage.error('获取预览链接失败')
+      currentPreviewType.value = 'unknown'
+    }
+  } catch (error) {
+    console.error('预览失败:', error)
+    ElMessage.error('预览失败')
+    currentPreviewType.value = 'unknown'
   } finally {
     previewLoading.value = false
+    previewingFileId.value = null
   }
 }
+
+// ✅ 预览弹窗关闭
+const handlePreviewClose = () => {
+  previewUrl.value = ''
+  currentPreviewType.value = 'unknown'
+  currentPreviewFileName.value = ''
+  currentPreviewFile.value = null
+}
+
+// ✅ 下载当前预览的文件
+const handleDownloadCurrent = () => {
+  if (currentPreviewFile.value) {
+    handleDownload(currentPreviewFile.value)
+  }
+}
+
+// ==================== 下载相关 ====================
+
+const handleDownload = async (file: FileItem) => {
+  downloadingFileId.value = file.fileId
+  try {
+    await downloadFileById(file.fileId, file.fileName)
+    ElMessage.success('下载成功')
+  } catch (error) {
+    ElMessage.error('下载失败')
+  } finally {
+    downloadingFileId.value = null
+  }
+}
+
+// ==================== 暴露方法 ====================
+defineExpose({
+  getFiles: () => fileItems.value,
+  clearFiles: () => {
+    fileItems.value = []
+    emit('update:modelValue', [])
+  }
+})
 </script>
 
 <style scoped>
-.file-upload-preview :deep(.el-upload--picture-card) {
-  width: 80px;
-  height: 80px;
+.file-util {
+  width: 100%;
 }
 
-.file-upload-preview :deep(.el-upload-list--picture-card .el-upload-list__item) {
-  width: 80px;
-  height: 80px;
+.upload-container :deep(.el-upload-list__item) {
+  transition: all 0.3s;
 }
 
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+.file-item {
+  transition: all 0.2s;
+}
+
+.file-item:hover {
+  background-color: #f0f9ff;
+}
+
+/* ✅ 预览容器样式 */
+.preview-container {
+  height: 75vh;
   overflow: hidden;
 }
 
-.upload-placeholder {
+.preview-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.image-preview-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  background-color: #f5f5f5;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.preview-fallback {
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
 }
 </style>

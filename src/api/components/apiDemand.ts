@@ -1,24 +1,23 @@
 import apiClient from '@/utils/http'
+import type { ProofFileItem } from './apiScore'  // ✅ 导入文件类型
+
 const apiBaseUrl = import.meta.env.VITE_BASE_API
+
+// ========== 类型定义 ==========
+
 export interface DemandTemplate {
-    id: number
-    templateName: string
-    conditions?: string[] | null
-    description?: string
-    sortOrder?: number
-    isActive?: number
-    createdBy?: string
-    createdAt?: string
-    updatedAt?: string
-  }
-  export interface DemandTemplateDto {
-    id?: number
-    templateName: string
-    conditions?: string[]
-    description?: string
-    sortOrder?: number
-    isActive?: number
-  }
+  id: number
+  templateName: string
+  conditions?: string[] | null
+  placeholder?: string
+  description?: string
+  sortOrder?: number
+  isActive?: number
+  createdBy?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
 export interface DemandApplicationItem {
   templateId: number
   templateName: string
@@ -26,31 +25,44 @@ export interface DemandApplicationItem {
   inputValue: string
 }
 
-export interface DemandApplicationSubmit {
-  applications: DemandApplicationItem[]
+export interface ApiResponse<T = any> {
+  code: number
+  msg: string
+  data: T
 }
 
-export interface DemandApplicationResponse {
-  id: number
-  studentId: string
-  applications: DemandApplicationItem[]
-  submitTime: string
-  updatedAt: string
-}
+// ========== API 方法 ==========
+
 /**
- * 获取启用的模板
+ * 获取启用的需求模板
  */
-export const getActiveTemplates = async () => {
+export const getActiveTemplates = async (): Promise<ApiResponse<DemandTemplate[]>> => {
   const response = await apiClient.get('/api/userinfo/getDemandTemplates')
   return response.data
 }
 
 /**
- * 保存需求申请
+ * ✅ 保存需求认证（使用 fileId 列表，新格式）
  */
-export const saveDemandApplication = async (demandData: DemandApplicationItem[], files: File[]) => {
+export const saveDemandApplicationWithFileIds = async (
+  applications: DemandApplicationItem[],
+  files: ProofFileItem[]
+): Promise<ApiResponse<any>> => {
+  const response = await apiClient.post('/api/userinfo/saveDemandInfoV2', {
+    demandData: JSON.stringify(applications),
+    proofFiles: files  // ✅ 直接传递 [{fileId, fileName}] 格式
+  })
+  return response.data
+}
+
+/**
+ * 保存需求认证（旧接口，使用 MultipartFile）
+ */
+export const saveDemandApplication = async (
+  demandData: DemandApplicationItem[],
+  files: File[]
+): Promise<ApiResponse<any>> => {
   const formData = new FormData()
-  
   formData.append('demandData', JSON.stringify(demandData))
   
   files.forEach(file => {
@@ -58,41 +70,7 @@ export const saveDemandApplication = async (demandData: DemandApplicationItem[],
   })
   
   const response = await apiClient.post('/api/userinfo/saveDemandInfo', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data'
-    }
+    headers: { 'Content-Type': 'multipart/form-data' }
   })
-  
-  return response.data
-}
-/**
- * 提交/更新申请
- */
-export const submitApplication = async (data: DemandApplicationSubmit) => {
-  const response = await apiClient.post(`${apiBaseUrl}/api/demand-application/submit`, data)
-  return response.data
-}
-
-/**
- * 获取我的申请
- */
-export const getMyApplication = async () => {
-  const response = await apiClient.get(`${apiBaseUrl}/api/demand-application/my`)
-  return response.data
-}
-
-/**
- * 删除我的申请
- */
-export const deleteMyApplication = async () => {
-  const response = await apiClient.delete(`${apiBaseUrl}/api/demand-application/my`)
-  return response.data
-}
-
-/**
- * 获取所有申请（管理端）
- */
-export const getAllApplications = async () => {
-  const response = await apiClient.get(`${apiBaseUrl}/api/demand-application/all`)
   return response.data
 }

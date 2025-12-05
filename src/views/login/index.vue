@@ -81,9 +81,9 @@ const submitLogin = async () => {
       localStorage.setItem('accessToken', response.data.accessToken);
       localStorage.setItem('refreshToken', response.data.refreshToken);
       ElMessage.success('登录成功');
-      const success = await userStore.fetchUserData()
+      const success = await userStore.fetchUserBasicInfo()
       router.push('/home')
-      if (success) {
+      if (!success) {
         ElMessage.error('请绑定学生信息')
       }
     } else {

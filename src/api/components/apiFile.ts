@@ -6,17 +6,13 @@ const apiBaseUrl = import.meta.env.VITE_BASE_API
 /** 文件上传参数 */
 export interface FileUploadDto {
   filePurpose?: string      // 文件用途
-  businessId?: string       // 业务ID
-  fileCategory?: string     // 文件分类
-  tags?: string            // 文件标签
-  description?: string     // 文件描述
+  fileCategory?: string     // 文件分类 (PUBLIC/AVATAR/自定义)
 }
 
 /** 文件查询参数 */
 export interface FileQueryDto {
   fileName?: string         // 文件名模糊查询
   fileCategory?: string     // 文件分类
-  businessId?: string       // 业务ID
   uploadUserId?: number     // 上传用户ID
   startTime?: string        // 开始时间(ISO格式)
   endTime?: string          // 结束时间(ISO格式)
@@ -41,7 +37,6 @@ export interface FileMetadataVO {
   contentType: string
   fileExtension: string
   fileCategory: string
-  businessId?: string
   filePurpose?: string
   uploadUserId: number
   uploadTime: string
@@ -73,10 +68,7 @@ export const uploadFile = async (file: File, metadata?: FileUploadDto): Promise<
   
   if (metadata) {
     if (metadata.filePurpose) formData.append('filePurpose', metadata.filePurpose)
-    if (metadata.businessId) formData.append('businessId', metadata.businessId)
     if (metadata.fileCategory) formData.append('fileCategory', metadata.fileCategory)
-    if (metadata.tags) formData.append('tags', metadata.tags)
-    if (metadata.description) formData.append('description', metadata.description)
   }
 
   const response = await apiClient.post(`${apiBaseUrl}/api/file/upload`, formData, {
@@ -113,7 +105,7 @@ export const getPreviewUrl = async (fileId: number, expiryMinutes: number = 60):
 
 /** 下载文件 */
 export const downloadFile = async (fileId: number): Promise<void> => {
-  const response = await apiClient.get(`${apiBaseUrl}/api/file/${fileId}/download`, {
+  const response = await apiClient.get(`${apiBaseUrl}/api/file/download/${fileId}`, {
     responseType: 'blob'
   })
   
