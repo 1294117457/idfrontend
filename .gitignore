@@ -28,3 +28,10 @@ coverage
 *.sw?
 
 *.tsbuildinfo
+# 所有.env环境变量文件（Vue3核心敏感文件，本地保留，不提交）
+.env
+.env.*
+# 构建产物（打包后的dist，无需提交）
+dist/
+dist-ssr/
+*.local
