@@ -54,23 +54,36 @@ const bindDialogVisible = ref(false)
 // ✅ 认证信息预览列表
 const previewFileList = ref<UploadUserFile[]>([])
 
-// 绑定表单
+// ✅ 修改绑定表单默认值
 const bindForm = ref<StudentItem>({
   email: '',
   code: '',
   fullName: '',
   major: '',
-  enrollmentYear: new Date().getFullYear(),
+  grade: 1,  // ✅ 默认大一
   graduationYear: new Date().getFullYear() + 4,
 })
 
-// 编辑表单
+// ✅ 修改编辑表单
 const editForm = ref<UpdateStudentItem>({
   email: '',
   code: '',
   fullName: '',
   major: '',
+  grade: 1,  // ✅ 默认大一
+  graduationYear: undefined
 })
+// ✅ 年级文本转换（只支持1-4）
+const getGradeText = (grade?: number) => {
+  if (!grade) return '-'
+  const gradeMap: Record<number, string> = {
+    1: '大一',
+    2: '大二',
+    3: '大三',
+    4: '大四'
+  }
+  return gradeMap[grade] || `年级${grade}`
+}
 // ==================== 计算属性 ====================
 // ✅ 新增：绑定表单是否可提交
 const canSubmitBindForm = computed(() => {
@@ -536,7 +549,9 @@ onMounted(async () => {
             <el-descriptions-item label="学生邮箱">{{ userInfo.studentEmail }}</el-descriptions-item>
             <el-descriptions-item label="姓名">{{ userInfo.fullName }}</el-descriptions-item>
             <el-descriptions-item label="专业">{{ userInfo.major }}</el-descriptions-item>
-            <el-descriptions-item label="入学年份">{{ userInfo.enrollmentYear }}级</el-descriptions-item>
+            <el-descriptions-item label="年级">
+              <el-tag>{{ getGradeText(userInfo?.grade) }}</el-tag>
+            </el-descriptions-item>
             <el-descriptions-item label="毕业年份">{{ userInfo.graduationYear }}</el-descriptions-item>
             <el-descriptions-item label="学业成绩">{{ userInfo.academicScore }}</el-descriptions-item>
             <el-descriptions-item label="专业成绩">{{ userInfo.specialtyScore }}</el-descriptions-item>
@@ -710,14 +725,14 @@ onMounted(async () => {
         </el-form-item>
 
         <el-form-item label="年级" required>
-          <el-input-number 
-            v-model="bindForm.enrollmentYear" 
-            :min="2000" 
-            :max="2030"
-            controls-position="right"
-            class="w-full"
-          />
-          <div class="text-xs text-gray-500 mt-1">入学年份（例如：2021级）</div>
+          <el-select v-model="bindForm.grade" placeholder="请选择年级" style="width: 100%">
+            <el-option
+              v-for="opt in gradeOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
         </el-form-item>
 
         <el-form-item label="毕业年份" required>
