@@ -6,14 +6,14 @@
     </div>
 
     <!-- 未绑定学生信息提示 -->
-    <el-card v-else-if="!userInfo">
+    <el-card class="min-h-[100vh]" v-else-if="!userInfo">
       <el-empty description="请先完成学生信息绑定">
         <el-button type="primary" @click="$router.push('/home/profile')">前往绑定</el-button>
       </el-empty>
     </el-card>
 
     <!-- 保研条件认证管理 -->
-    <el-card v-else>
+    <el-card class="min-h-[100vh]" v-else>
       <div class="flex items-center justify-between mb-4">
         <h4 class="text-[20px] font-bold text-gray-800">保研条件认证</h4>
         <el-button 

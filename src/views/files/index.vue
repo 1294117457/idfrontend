@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen flex flex-col gap-5 p-4">
-    <el-card>
-      <div class="flex items-center mb-4">
+    <el-card class="min-h-[100vh]">
+      <div class="flex items-center mb-4 ">
         <h4 class="text-[20px] font-bold text-gray-800">公共文件管理</h4>
       </div>
 

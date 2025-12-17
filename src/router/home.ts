@@ -1,4 +1,4 @@
-import HomePage from '@/views/home/component/show.vue'
+import HomePage from '@/views/home/homelayout.vue'
 import HomeIndex from '@/views/home/index.vue'
 import SettingIcon from '@/assets/icons/setting.vue' // 导入 setting.vue 组件
 
@@ -11,7 +11,7 @@ const childrenRoutes = Object.values(modules).map((module: any) => module.defaul
 export default {
   path: '/home',
   component: HomePage,
-  children: [
+   children: [
     { path: 'index', component: HomeIndex, meta: { title: '首页', icon: SettingIcon, sort: 0 } }, // 首页路由
     ...childrenRoutes, // 自动加载的子路由
     { path: '', redirect: 'home/index' }, // 修正重定向为字符串路径

@@ -11,4 +11,15 @@ onMounted(() => {
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+  /* ✅ 页面容器统一样式 */
+.page-container {
+  min-height: calc(100vh - 6rem);
+  padding: 1rem;
+}
+
+.page-container-card {
+  min-height: calc(100vh - 8rem);
+  padding: 1rem;
+}
+</style>

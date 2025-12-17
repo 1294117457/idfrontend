@@ -409,7 +409,7 @@ onMounted(async () => {
       <el-icon class="is-loading" :size="50"><Loading /></el-icon>
     </div>
 
-    <el-card v-else>
+    <el-card class="min-h-[100vh]" v-else>
       <!-- 顶部分数统计 -->
       <div class="flex items-center justify-between mb-4">
         <h4 class="text-[20px] font-bold text-gray-800">加分项申请</h4>
