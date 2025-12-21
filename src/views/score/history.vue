@@ -22,12 +22,20 @@
           </template>
         </el-table-column>
         
-        <el-table-column prop="applyScore" label="得分" width="80" align="center" />
+        <el-table-column label="分数" width="150" align="center">
+          <template #default="{ row }">
+            <div class="flex flex-col gap-1">
+              <span class="text-sm text-gray-500">预期: {{ row.applyScore }} 分</span>
+              <span class="text-sm font-bold text-green-600">已获: {{ row.gainScore || 0 }} 分</span>
+            </div>
+          </template>
+        </el-table-column>
         
         <el-table-column label="审核进度" width="140" align="center">
           <template #default="{ row }">
             <el-progress 
-              :percentage="(row.currentReviewCount / row.reviewCount) * 100"
+              :percentage="getProgressPercentage(row)"
+              :status="getProgressStatus(row)"
               :format="() => `${row.currentReviewCount}/${row.reviewCount}`"
             />
           </template>
@@ -65,14 +73,15 @@
       </el-table>
     </el-card>
 
-    <!-- ✅ 详情弹窗 -->
+    <!-- ✅ 详情弹窗（展示证明材料列表） -->
     <el-dialog 
       v-model="showDetailDialog" 
       title="申请详情" 
-      width="800px" 
+      width="900px" 
       :close-on-click-modal="false"
     >
       <div v-if="selectedRecord">
+        <!-- ✅ 基本信息 -->
         <el-descriptions :column="2" border>
           <el-descriptions-item label="加分项名称" :span="2">
             {{ selectedRecord.templateName }}
@@ -84,8 +93,12 @@
             </el-tag>
           </el-descriptions-item>
           
-          <el-descriptions-item label="申请得分">
-            <span class="text-lg font-bold text-green-600">{{ selectedRecord.applyScore }} 分</span>
+          <el-descriptions-item label="预期分数">
+            <span class="text-lg font-bold text-blue-600">{{ selectedRecord.applyScore }} 分</span>
+          </el-descriptions-item>
+          
+          <el-descriptions-item label="已获得分数">
+            <span class="text-lg font-bold text-green-600">{{ selectedRecord.gainScore || 0 }} 分</span>
           </el-descriptions-item>
           
           <el-descriptions-item label="审核状态">
@@ -111,17 +124,65 @@
           </el-descriptions-item>
         </el-descriptions>
 
-        <!-- ✅ 使用新的 FileUtil 组件预览证明文件 -->
-        <div v-if="detailProofFiles.length > 0" class="mt-4">
-          <el-divider content-position="left">证明文件</el-divider>
-          <FileUtil
-            v-model="detailProofFiles"
-            :show-upload-button="false"
-            :show-preview-button="true"
-            :show-download-button="true"
-            :show-delete-button="false"
-            :disabled="true"
-          />
+        <!-- ✅ 证明材料列表（可滚动） -->
+        <div v-loading="proofsLoading" class="mt-4">
+          <el-divider content-position="left">证明材料列表</el-divider>
+          
+          <div v-if="proofsList.length === 0" class="text-center text-gray-400 py-8">
+            暂无证明材料
+          </div>
+          
+          <!-- ✅ 可滚动的证明材料表格 -->
+          <div v-else class="max-h-96 overflow-y-auto">
+            <el-table :data="proofsList" border stripe>
+              <el-table-column label="序号" width="60" align="center">
+                <template #default="{ $index }">
+                  {{ $index + 1 }}
+                </template>
+              </el-table-column>
+              
+              <el-table-column prop="proofScore" label="分数" width="100" align="center">
+                <template #default="{ row }">
+                  <span class="font-bold text-blue-600">{{ row.proofScore }} 分</span>
+                </template>
+              </el-table-column>
+              
+              <el-table-column label="审核状态" width="100" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="getProofStatusType(row.status)">
+                    {{ getProofStatusText(row.status) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              
+              <el-table-column label="审核进度" width="120" align="center">
+                <template #default="{ row }">
+                  {{ row.approvedCount }} / {{ selectedRecord.reviewCount }}
+                </template>
+              </el-table-column>
+              
+              <el-table-column prop="remark" label="说明" min-width="150" />
+              
+              <el-table-column label="操作" width="200" align="center">
+                <template #default="{ row }">
+                  <el-button 
+                    type="primary" 
+                    size="small"
+                    @click="handlePreviewProof(row.proofFileId)"
+                  >
+                    预览
+                  </el-button>
+                  <el-button 
+                    type="success" 
+                    size="small"
+                    @click="handleDownloadProof(row.proofFileId, row.remark)"
+                  >
+                    下载
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
         </div>
 
         <!-- ✅ 审核记录展示 -->
@@ -132,21 +193,21 @@
               v-for="(record, index) in parseReviewRecords(selectedRecord.reviewRecords)" 
               :key="index"
               :type="getReviewTimelineType(record.action)"
-              :timestamp="formatDateTime(record.timestamp)"
               placement="top"
             >
-              <div class="flex items-center gap-2">
-                <el-tag :type="getReviewTagType(record.action)" size="small">
+              <div class="flex items-center gap-2 mb-1">
+                <el-tag :type="getReviewTagType(record.action)">
                   {{ getActionText(record.action) }}
                 </el-tag>
-                <span class="text-gray-600">{{ record.reviewerName }}</span>
+                <span class="font-medium">{{ record.reviewerName }}</span>
               </div>
-              <p class="text-sm text-gray-500 mt-1">{{ record.comment }}</p>
+              <p class="text-sm text-gray-600">{{ record.comment || '无备注' }}</p>
+              <p class="text-xs text-gray-400">{{ record.reviewTime }}</p>
             </el-timeline-item>
           </el-timeline>
         </div>
 
-        <!-- ✅ 如果还在审核中,显示提示 -->
+        <!-- ✅ 审核进度提示 -->
         <div v-if="selectedRecord.status === 0 && selectedRecord.currentReviewCount < selectedRecord.reviewCount" class="mt-4">
           <el-alert
             type="info"
@@ -179,10 +240,11 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   getMyRecords, 
   cancelBonusRecord,
-  type ProofFileItem  // ✅ 导入新的文件类型
+  getApplicationProofs,
+  getFilePreviewById,
+  downloadFileById
 } from '@/api/components/apiScore'
 import { useUserStore } from '@/stores/profile'
-import FileUtil from '@/components/fileUtil.vue'
 
 const userStore = useUserStore()
 
@@ -190,8 +252,9 @@ const myRecords = ref<any[]>([])
 const showDetailDialog = ref(false)
 const selectedRecord = ref<any>(null)
 
-// ✅ 详情弹窗中的证明文件列表（新格式）
-const detailProofFiles = ref<ProofFileItem[]>([])
+// ✅ 证明材料列表
+const proofsList = ref<any[]>([])
+const proofsLoading = ref(false)
 
 // ==================== 加载记录 ====================
 const loadMyRecords = async () => {
@@ -215,36 +278,58 @@ const loadMyRecords = async () => {
   }
 }
 
-// ==================== ✅ 解析证明文件（支持新旧格式） ====================
-const parseProofFiles = (json: string): ProofFileItem[] => {
-  if (!json) return []
+// ==================== ✅ 查看详情（加载证明材料） ====================
+const handleViewDetail = async (row: any) => {
+  selectedRecord.value = { ...row }
+  showDetailDialog.value = true
+  
+  // ✅ 加载该申请的所有证明材料
+  await loadProofs(row.id)
+}
+
+// ✅ 加载证明材料
+const loadProofs = async (applicationId: number) => {
   try {
-    const files = JSON.parse(json)
-    if (!Array.isArray(files)) return []
+    proofsLoading.value = true
+    const response = await getApplicationProofs(applicationId)
     
-    // ✅ 检查是否为新格式 [{fileId, fileName}]
-    if (files.length > 0 && typeof files[0] === 'object' && files[0].fileId !== undefined) {
-      return files as ProofFileItem[]
+    if (response.code === 200) {
+      proofsList.value = response.data.proofs || []
+    } else {
+      ElMessage.error('加载证明材料失败')
     }
-    
-    // ✅ 兼容旧格式（字符串数组，如 MinIO objectName）
-    return files.map((item: string, index: number) => ({
-      fileId: 0,  // 旧数据没有 fileId，设为 0
-      fileName: `证明文件${index + 1}`
-    }))
-  } catch {
-    return []
+  } catch (error) {
+    console.error('加载证明材料失败:', error)
+    ElMessage.error('加载证明材料失败')
+  } finally {
+    proofsLoading.value = false
   }
 }
 
-// ==================== 查看详情 ====================
-const handleViewDetail = (row: any) => {
-  selectedRecord.value = { ...row }
-  
-  // ✅ 解析证明文件为新格式
-  detailProofFiles.value = parseProofFiles(row.proofFiles)
-  
-  showDetailDialog.value = true
+// ✅ 预览证明材料
+const handlePreviewProof = async (fileId: number) => {
+  try {
+    const response = await getFilePreviewById(fileId, 60)
+    if (response.code === 200) {
+      window.open(response.data, '_blank')
+    } else {
+      ElMessage.error('获取预览链接失败')
+    }
+  } catch (error) {
+    console.error('预览失败:', error)
+    ElMessage.error('预览失败')
+  }
+}
+
+// ✅ 下载证明材料
+const handleDownloadProof = async (fileId: number, fileName: string) => {
+  try {
+    await downloadFileById(fileId, fileName)
+    ElMessage.success('下载成功')
+  } catch (error) {
+    console.error('下载失败:', error)
+    ElMessage.error('下载失败')
+  }
 }
 
 // ==================== 撤销申请 ====================
@@ -353,6 +438,16 @@ const getStatusType = (status: number) => {
   return map[status] || 'info'
 }
 
+const getProofStatusType = (status: number) => {
+  const map: Record<number, any> = { 0: 'warning', 1: 'success', 2: 'danger' }
+  return map[status] || 'info'
+}
+
+const getProofStatusText = (status: number) => {
+  const map: Record<number, string> = { 0: '待审核', 1: '已通过', 2: '已驳回' }
+  return map[status] || '未知'
+}
+
 const getReviewTimelineType = (action: string) => {
   const map: Record<string, string> = { approved: 'success', rejected: 'danger', revoked: 'info' }
   return map[action] || 'info'
@@ -376,6 +471,25 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* ✅ 滚动条样式优化 */
+.max-h-96::-webkit-scrollbar {
+  width: 6px;
+}
+
+.max-h-96::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.max-h-96::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 3px;
+}
+
+.max-h-96::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
 :deep(.el-progress__text) {
   font-size: 12px !important;
 }

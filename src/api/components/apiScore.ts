@@ -10,6 +10,14 @@ export interface ProofFileItem {
   fileName: string
 }
 
+// ✅ 证明材料项（用户输入）
+export interface ProofItemInput {
+  fileId: number
+  fileName: string
+  proofScore: number  // ✅ 用户输入的分数
+  remark?: string
+}
+
 // ✅ 提交申请 DTO
 export interface SubmitBonusApplicationDto {
   studentId: string
@@ -18,15 +26,45 @@ export interface SubmitBonusApplicationDto {
   enrollmentYear: number
   templateName: string
   scoreType: number
-  calculatedScore: number
+  applyScore: number        // ✅ 预期申请分数（所有 proof 分数之和）
   ruleValues: Record<string, any>
   reviewCount: number
-  proofFiles: ProofFileItem[]  // ✅ [{fileId, fileName}] 格式
+  proofItems: Array<{       // ✅ 证明材料列表
+    proofFileId: number
+    proofScore: number
+    remark?: string
+  }>
   remark?: string
 }
 
 // ==================== API 方法 ====================
+/**
+ * ✅ 根据申请ID获取所有证明材料
+ */
+export const getApplicationProofs = async (applicationId: number) => {
+  const response = await apiClient.get(`/api/score/application/${applicationId}/proofs`)
+  return response.data
+}
 
+/**
+ * ✅ 审核证明材料 - 通过
+ */
+export const approveProof = async (proofId: number, comment?: string) => {
+  const response = await apiClient.post(`/api/score/proof/${proofId}/approve`, null, {
+    params: { comment }
+  })
+  return response.data
+}
+
+/**
+ * ✅ 审核证明材料 - 驳回
+ */
+export const rejectProof = async (proofId: number, comment?: string) => {
+  const response = await apiClient.post(`/api/score/proof/${proofId}/reject`, null, {
+    params: { comment }
+  })
+  return response.data
+}
 export const getAvailableTemplates = async () => {
   const response = await apiClient.get('/api/student-bonus/templates')
   return response.data
