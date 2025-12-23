@@ -10,28 +10,34 @@ export interface ProofFileItem {
   fileName: string
 }
 
-// ✅ 证明材料项（用户输入）
+// ✅ 修改证明材料项
 export interface ProofItemInput {
   fileId: number
   fileName: string
-  proofScore: number  // ✅ 用户输入的分数
+  proofValue: number      // ✅ 改名: proofScore -> proofValue
   remark?: string
 }
 
-// ✅ 提交申请 DTO
+// ✅ 修改提交申请 DTO
 export interface SubmitBonusApplicationDto {
   studentId: string
   studentName: string
   major: string
   enrollmentYear: number
   templateName: string
+  templateType: string      // ✅ 新增: CONDITION/TRANSFORM
   scoreType: number
-  applyScore: number        // ✅ 预期申请分数（所有 proof 分数之和）
+  applyScore: number
+  
+  // ✅ 新增: TRANSFORM 模板使用
+  applyInput?: number
+  ruleId?: number
+  
   ruleValues: Record<string, any>
   reviewCount: number
-  proofItems: Array<{       // ✅ 证明材料列表
+  proofItems: Array<{
     proofFileId: number
-    proofScore: number
+    proofValue: number      // ✅ 改名
     remark?: string
   }>
   remark?: string

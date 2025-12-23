@@ -37,11 +37,15 @@ const comprehensiveTemplates = computed(() =>
 const academicGradeTemplates = computed(() => 
   allTemplates.value.filter(t => t.scoreType === 2)
 )
+// ==================== ✅ CONDITION 模板:属性选择 ====================
+const templateAttributes = ref<string[]>([])           // 所有属性代码列表 ["获奖层级", "获奖等级"]
+const attributeOptions = ref<Record<string, string[]>>({})  // 每个属性的可选值
+const selectedAttributeValues = ref<Record<string, string>>({})  // 用户选择的属性值
+const currentTemplateRules = ref<any[]>([])            // 所有规则
+const matchedRule = ref<any>(null)                     // 匹配的规则
 
 // ==================== 申请表单数据 ====================
 const selectedTemplate = ref<any>(null)
-const templateAttributes = ref<string[]>([])
-const attributeOptions = ref<Record<string, any[]>>({})
 
 // ✅ 修改：使用新的文件格式
 const proofItems = ref<FileTableItem[]>([])
@@ -68,7 +72,6 @@ const calculatedTimeScore = ref<number>(0)
 
 // ==================== 普通规则相关（保持不变） ====================
 const matchedNormalRule = ref<any>(null)
-const currentTemplateRules = ref<any[]>([])
 // ==================== ✅ 计算预期总分 ====================
 const totalProofScore = computed(() => {
   return proofItems.value.reduce((sum, item) => sum + (Number(item.fileValue) || 0), 0)
@@ -121,14 +124,15 @@ const handleScoreInput = (index: number) => {
   item.proofScore = Math.round(item.proofScore * 100) / 100
 }
 
-// ==================== 数据加载函数（保持不变） ====================
+// ==================== 数据加载函数 ====================
 const loadTemplates = async () => {
+  loading.value = true
   try {
     const response = await getAvailableTemplates()
     if (response.code === 200) {
       allTemplates.value = response.data || []
     } else {
-      ElMessage.error('加载模板失败')
+      ElMessage.error(response.msg || '加载模板失败')
     }
   } catch (error) {
     console.error('加载模板失败:', error)
@@ -139,59 +143,127 @@ const loadTemplates = async () => {
 }
 
 
+
 // ==================== 申请弹窗相关函数 ====================
+const currentTemplateType = ref<'CONDITION' | 'TRANSFORM'>('CONDITION')
+
+// ==================== ✅ 打开申请弹窗 ====================
 const openApplyDialog = async (template: any) => {
+  selectedTemplate.value = template
+  currentTemplateType.value = template.templateType
+  resetApplyForm()
+
   try {
-    selectedTemplate.value = template
-    applyForm.templateId = template.id
-    applyForm.attributeValues = {}
-    applyForm.remark = ''
-    
-    // ✅ 清空证明材料列表
-    proofItems.value = []
-    
-    matchedNormalRule.value = null
-    conversionInput.value = 0
-    convertedScore.value = 0
-    matchedConversionRule.value = null
-
     const response = await getTemplateDetail(template.id)
-    if (response.code !== 200) {
-      ElMessage.error('获取模板详情失败')
-      return
-    }
+    if (response.code === 200) {
+      const detail = response.data
 
-    const templateDetail = response.data
-    const rules = templateDetail.rules || []
-    
-    currentTemplateRules.value = rules
-    selectedTemplate.value.maxScore = templateDetail.maxScore
-    selectedTemplate.value.reviewCount = templateDetail.reviewCount
-    
-    const hasConversion = rules.some((rule: any) => {
-      try {
-        const conditions = JSON.parse(rule.conditions)
-        return conditions.分数换算
-      } catch {
-        return false
+      if (template.templateType === 'CONDITION') {
+        // ✅ CONDITION 模板:处理属性分组
+        currentTemplateRules.value = detail.rules || []
+        
+        // 1️⃣ 提取所有唯一的 attributeCode
+        const attributeCodeSet = new Set<string>()
+        const attributeValueMap = new Map<string, Set<string>>()
+
+        detail.rules.forEach((rule: any) => {
+          if (rule.attributes && rule.attributes.length > 0) {
+            rule.attributes.forEach((attr: any) => {
+              // 记录所有 attributeCode
+              attributeCodeSet.add(attr.attributeCode)
+              
+              // 为每个 attributeCode 收集所有可能的 attributeValue
+              if (!attributeValueMap.has(attr.attributeCode)) {
+                attributeValueMap.set(attr.attributeCode, new Set<string>())
+              }
+              attributeValueMap.get(attr.attributeCode)!.add(attr.attributeValue)
+            })
+          }
+        })
+
+        // 2️⃣ 构建属性列表和选项
+        templateAttributes.value = Array.from(attributeCodeSet)
+        attributeOptions.value = {}
+        
+        attributeValueMap.forEach((values, code) => {
+          attributeOptions.value[code] = Array.from(values).sort()
+        })
+
+        // 3️⃣ 初始化选择
+        selectedAttributeValues.value = {}
+        templateAttributes.value.forEach(attr => {
+          selectedAttributeValues.value[attr] = ''
+        })
+
+        console.log('✅ 提取的属性:', templateAttributes.value)
+        console.log('✅ 属性选项:', attributeOptions.value)
+
+      } else if (template.templateType === 'TRANSFORM') {
+        // ...TRANSFORM 逻辑保持不变...
+        const rules = detail.rules || []
+        if (rules.length > 0) {
+          const firstRule = rules[0]
+          matchedConversionRule.value = firstRule
+          
+          if (firstRule.attributes && firstRule.attributes.length > 0) {
+            const transformAttr = firstRule.attributes.find((a: any) => a.attributeType === 'TRANSFORM')
+            if (transformAttr) {
+              conversionRules.value = [{
+                formula: transformAttr.attributeValue,
+                minValue: transformAttr.inputMin,
+                maxValue: transformAttr.inputMax,
+                intervalType: transformAttr.inputInterval
+              }]
+            }
+          }
+        }
+        
+        hasConversionRule.value = conversionRules.value.length > 0
       }
-    })
-    
-    hasConversionRule.value = hasConversion
-    
-    if (hasConversion) {
-      initConversionRules(rules)
-    } else {
-      initNormalRules(rules)
+
+      applyDialogVisible.value = true
     }
-    
-    applyDialogVisible.value = true
   } catch (error) {
-    console.error('打开申请弹窗失败:', error)
-    ElMessage.error('打开申请弹窗失败')
+    console.error('加载模板详情失败:', error)
+    ElMessage.error('加载模板详情失败')
   }
 }
+// ==================== ✅ CONDITION 模板:属性选择变化时匹配规则 ====================
+const handleAttributeChange = () => {
+  // 检查是否所有属性都已选择
+  const allSelected = templateAttributes.value.every(attr => selectedAttributeValues.value[attr])
+  
+  if (!allSelected) {
+    matchedRule.value = null
+    return
+  }
 
+  // 查找匹配的规则
+  for (const rule of currentTemplateRules.value) {
+    if (!rule.attributes || rule.attributes.length === 0) continue
+
+    let matched = true
+
+    // 检查规则的所有属性是否都匹配
+    for (const attr of rule.attributes) {
+      const selectedValue = selectedAttributeValues.value[attr.attributeCode]
+      
+      if (selectedValue !== attr.attributeValue) {
+        matched = false
+        break
+      }
+    }
+
+    if (matched) {
+      matchedRule.value = rule
+      console.log('✅ 匹配到规则:', rule.ruleName || `规则${rule.id}`, rule.ruleScore)
+      return
+    }
+  }
+
+  matchedRule.value = null
+  console.log('⚠️ 未找到匹配的规则')
+}
 // ==================== 规则初始化（保持原有逻辑） ====================
 const initConversionRules = (rules: any[]) => {
   conversionRules.value = rules
@@ -258,27 +330,43 @@ const initNormalRules = (rules: any[]) => {
   })
 }
 
-// ==================== 分数计算相关函数（保持原有逻辑） ====================
+// ==================== ✅ TRANSFORM 模板换算逻辑 ====================
 const handleConversionInput = (value: number | undefined) => {
-  if (value === undefined || value < 0) {
+  if (!value || conversionRules.value.length === 0) {
     convertedScore.value = 0
-    matchedConversionRule.value = null
     return
   }
-  
-  const matchedRule = conversionRules.value.find(rule => 
-    value >= rule.minRange && value <= rule.maxRange
-  )
-  
-  if (matchedRule) {
-    matchedConversionRule.value = matchedRule
-    const formulaResult = evaluateFormula(matchedRule.formula, value)
-    const percentage = matchedRule.scorePercentage / 100
-    convertedScore.value = Number((formulaResult * percentage * (selectedTemplate.value.maxScore || 100) / 100).toFixed(2))
-  } else {
-    matchedConversionRule.value = null
-    convertedScore.value = 0
+
+  // 查找匹配的换算规则
+  for (const rule of conversionRules.value) {
+    const { minValue, maxValue, intervalType, formula } = rule
+
+    // 检查输入值是否在范围内
+    let inRange = false
+    switch (intervalType) {
+      case 'OPEN':  // (min, max)
+        inRange = value > minValue && value < maxValue
+        break
+      case 'CLOSED':  // [min, max]
+        inRange = value >= minValue && value <= maxValue
+        break
+      case 'LEFT_OPEN':  // (min, max]
+        inRange = value > minValue && value <= maxValue
+        break
+      case 'RIGHT_OPEN':  // [min, max)
+        inRange = value >= minValue && value < maxValue
+        break
+    }
+
+    if (inRange) {
+      // 计算换算分数
+      convertedScore.value = evaluateFormula(formula, value)
+      return
+    }
   }
+
+  convertedScore.value = 0
+  ElMessage.warning('输入值超出有效范围')
 }
 
 const evaluateFormula = (formula: string, inputValue: number): number => {
@@ -301,34 +389,75 @@ const getConversionRangeText = (): string => {
   return '未找到匹配的换算规则'
 }
 
+// ==================== ✅ CONDITION 模板匹配逻辑 ====================
 const calculateMatchedScore = () => {
-  const rules = currentTemplateRules.value
-  
-  for (const rule of rules) {
-    try {
-      const conditions = JSON.parse(rule.conditions)
-      let allMatch = true
+  if (currentTemplateType.value !== 'CONDITION') return
+
+  // 获取当前选择的属性值
+  const selectedValues: Record<string, any> = {}
+  Object.keys(applyForm).forEach(key => {
+    if (key !== 'remark' && (applyForm as any)[key]) {
+      selectedValues[key] = (applyForm as any)[key]
+    }
+  })
+
+  // ✅ 找到所有匹配的规则
+  const matchedRules: any[] = []
+
+  for (const rule of currentTemplateRules.value) {
+    if (!rule.attributes || rule.attributes.length === 0) continue
+
+    let matched = true
+
+    // 检查规则的所有属性是否都匹配
+    for (const attr of rule.attributes) {
+      const selectedValue = selectedValues[attr.attributeCode]
       
-      for (const [key, value] of Object.entries(conditions)) {
-        if (key === '分数换算') continue
-        if (applyForm.attributeValues[key] !== String(value)) {
-          allMatch = false
+      if (attr.attributeType === 'CONDITION') {
+        // CONDITION:必须完全匹配
+        if (selectedValue !== attr.attributeValue) {
+          matched = false
+          break
+        }
+      } else if (attr.attributeType === 'TRANSFORM') {
+        // TRANSFORM:检查是否在范围内
+        if (!selectedValue || !isInRange(selectedValue, attr)) {
+          matched = false
           break
         }
       }
-      
-      if (allMatch) {
-        matchedNormalRule.value = rule
-        return
-      }
-    } catch (error) {
-      console.error('解析规则失败:', error)
+    }
+
+    if (matched) {
+      matchedRules.push(rule)
     }
   }
-  
-  matchedNormalRule.value = null
-}
+// ✅ 辅助函数:检查数值是否在范围内
+const isInRange = (value: number, attr: any): boolean => {
+  const { inputMin, inputMax, inputInterval } = attr
+  if (!inputMin || !inputMax) return true
 
+  switch (inputInterval) {
+    case 'OPEN':
+      return value > inputMin && value < inputMax
+    case 'CLOSED':
+      return value >= inputMin && value <= inputMax
+    case 'LEFT_OPEN':
+      return value > inputMin && value <= inputMax
+    case 'RIGHT_OPEN':
+      return value >= inputMin && value < inputMax
+    default:
+      return true
+  }
+}
+  // ✅ 优先级最高的规则
+  if (matchedRules.length > 0) {
+    matchedRules.sort((a, b) => b.priority - a.priority)
+    matchedNormalRule.value = matchedRules[0]
+  } else {
+    matchedNormalRule.value = null
+  }
+}
 const calculateTimeScore = () => {
   const inputTime = applyForm.attributeValues['项目时长']
   if (inputTime && timeStandard.value && scorePerUnit.value) {
@@ -348,115 +477,114 @@ const getTimeUnitLabel = (unit: string) => {
   return map[unit] || unit
 }
 
-// ==================== ✅ 提交申请（修改文件部分） ====================
+// ==================== ✅ 提交申请 ====================
 const handleSubmitApply = async () => {
-  try {
-    if (!userStore.hasStudentInfo) {
-      ElMessage.warning('请先完善学生信息')
+  if (!selectedTemplate.value) return
+
+  if (proofItems.value.length === 0) {
+    ElMessage.warning('请至少上传一个证明材料')
+    return
+  }
+
+  const hasInvalidProof = proofItems.value.some(item => !item.fileValue || Number(item.fileValue) <= 0)
+  if (hasInvalidProof) {
+    ElMessage.warning('请为每个证明材料填写有效的分数/值')
+    return
+  }
+
+  let submitData: SubmitBonusApplicationDto
+
+  if (currentTemplateType.value === 'CONDITION') {
+    // ✅ CONDITION 模板
+    if (!matchedRule.value) {
+      ElMessage.warning('请选择完整的条件以匹配规则')
       return
     }
 
-    // ✅ 验证证明材料
-    if (proofItems.value.length === 0) {
-      ElMessage.warning('请至少上传一个证明材料')
-      return
-    }
-
-    // ✅ 修正：使用 fileValue 而不是 proofScore
-    const invalidItems = proofItems.value.filter(item => {
-      const score = Number(item.fileValue)
-      return !item.fileValue || isNaN(score) || score <= 0
-    })
-    
-    if (invalidItems.length > 0) {
-      ElMessage.warning('请为所有证明材料填写有效分数')
-      return
-    }
-
-    // ✅ 构建提交数据
-    const submitData: SubmitBonusApplicationDto = {
-      studentId: userStore.studentInfo!.studentId,
-      studentName: userStore.studentInfo!.fullName,
-      major: userStore.studentInfo!.major,
-      enrollmentYear: userStore.studentInfo!.enrollmentYear,
+    submitData = {
+      studentId: userStore.profile.student_id,
+      studentName: userStore.profile.full_name,
+      major: userStore.profile.major,
+      enrollmentYear: userStore.profile.grade,
       templateName: selectedTemplate.value.templateName,
+      templateType: 'CONDITION',
       scoreType: selectedTemplate.value.scoreType,
-      applyScore: totalProofScore.value,  // ✅ 已经在 computed 中处理
+      applyScore: matchedRule.value.ruleScore,
+      ruleId: matchedRule.value.id,
+      ruleValues: selectedAttributeValues.value,  // ✅ 使用新的选择数据
       reviewCount: selectedTemplate.value.reviewCount,
       proofItems: proofItems.value.map(item => ({
         proofFileId: item.fileId,
-        proofScore: Number(item.fileValue) || 0,  // ✅ 使用 fileValue
-        remark: item.fileName
+        proofValue: Number(item.fileValue),
+        remark: item.remark
       })),
-      ruleValues: {},
       remark: applyForm.remark
     }
 
-    // 换算规则提交
-    if (hasConversionRule.value) {
-      if (!matchedConversionRule.value) {
-        ElMessage.error('请输入有效的分数进行换算')
-        return
-      }
-      
-      submitData.ruleValues = {
-        '分数换算': {
-          输入分数: conversionInput.value,
-          匹配规则: matchedConversionRule.value.ruleName,
-          换算后分数: convertedScore.value
-        }
-      }
-    } 
-    // 普通规则提交
-    else {
-      const missingAttrs = templateAttributes.value.filter(attr => {
-        const value = applyForm.attributeValues[attr]
-        return value === undefined || value === null || value === ''
-      })
-
-      if (missingAttrs.length > 0) {
-        ElMessage.error(`请填写: ${missingAttrs.join(', ')}`)
-        return
-      }
-
-      if (!matchedNormalRule.value && !hasTimeRule.value) {
-        calculateMatchedScore()
-        if (!matchedNormalRule.value) {
-          ElMessage.error('未匹配到评分规则，请检查填写内容')
-          return
-        }
-      }
-
-      submitData.ruleValues = { ...applyForm.attributeValues }
+  } else {
+    // TRANSFORM 模板逻辑保持不变...
+    if (!conversionInput.value || convertedScore.value <= 0) {
+      ElMessage.warning('请输入有效的换算值')
+      return
     }
 
-    submitting.value = true
+    submitData = {
+      studentId: userStore.profile.student_id,
+      studentName: userStore.profile.full_name,
+      major: userStore.profile.major,
+      enrollmentYear: userStore.profile.grade,
+      templateName: selectedTemplate.value.templateName,
+      templateType: 'TRANSFORM',
+      scoreType: selectedTemplate.value.scoreType,
+      applyScore: convertedScore.value,
+      applyInput: conversionInput.value,
+      ruleId: matchedConversionRule.value?.id,
+      ruleValues: {},
+      reviewCount: selectedTemplate.value.reviewCount,
+      proofItems: proofItems.value.map(item => ({
+        proofFileId: item.fileId,
+        proofValue: Number(item.fileValue),
+        remark: item.remark
+      })),
+      remark: applyForm.remark
+    }
+  }
+
+  submitting.value = true
+  try {
     const response = await submitBonusApplication(submitData)
-    
     if (response.code === 200) {
-      ElMessage.success('提交成功!')
+      ElMessage.success('提交成功')
       applyDialogVisible.value = false
       resetApplyForm()
     } else {
-      ElMessage.error('提交失败: ' + (response.msg || '未知错误'))
+      ElMessage.error(response.msg || '提交失败')
     }
-  } catch (error: any) {
-    console.error('提交申请失败:', error)
-    ElMessage.error('提交申请失败')
+  } catch (error) {
+    console.error('提交失败:', error)
+    ElMessage.error('提交失败')
   } finally {
     submitting.value = false
   }
 }
-
 // ✅ 重置表单
 const resetApplyForm = () => {
+  proofItems.value = []
+  applyForm.remark = ''
+  
+  // 清空 CONDITION 模板数据
+  templateAttributes.value = []
+  attributeOptions.value = {}
+  selectedAttributeValues.value = {}
+  matchedRule.value = null
+  currentTemplateRules.value = []
+  
+  // 清空 TRANSFORM 模板数据
   conversionInput.value = 0
   convertedScore.value = 0
   matchedConversionRule.value = null
-  matchedNormalRule.value = null
-  applyForm.attributeValues = {}
-  applyForm.remark = ''
-  proofItems.value = []
+  conversionRules.value = []
+  hasConversionRule.value = false
 }
 // ==================== 生命周期 ====================
 onMounted(async () => {
@@ -550,163 +678,164 @@ onMounted(async () => {
     </el-card>
 
     <!-- ✅ 申请弹窗 -->
-    <el-dialog 
+      <el-dialog 
       v-model="applyDialogVisible" 
-      :title="`申请 - ${selectedTemplate?.templateName}`"
+      :title="`申请 - ${selectedTemplate?.templateName} (${currentTemplateType === 'CONDITION' ? '条件模板' : '换算模板'})`"
       width="800px"
       :close-on-click-modal="false"
     >
       <el-form :model="applyForm" label-width="120px">
-        <!-- ========== 换算规则表单 ========== -->
-        <template v-if="hasConversionRule">
-          <el-form-item label="输入分数:" required>
-            <el-input-number 
-              v-model="conversionInput" 
-              :min="0" 
-              :max="10" 
-              :step="0.01" 
-              :precision="2"
-              @change="handleConversionInput"
-              placeholder="请输入分数"
-              style="width: 100%"
-            />
-            <div class="text-xs text-gray-500 mt-1">{{ getConversionRangeText() }}</div>
-          </el-form-item>
-          
-          <el-alert
-            v-if="matchedConversionRule"
-            type="success"
-            :closable="false"
-            class="mb-4"
-          >
-            <div class="text-sm">
-              <p class="font-bold">✅ 匹配规则: {{ matchedConversionRule.ruleName }}</p>
-              <p>得分比例: {{ matchedConversionRule.scorePercentage }}%</p>
-              <p class="text-lg font-bold text-green-600 mt-1">预计得分: {{ finalCalculatedScore.toFixed(2) }}分</p>
-            </div>
-          </el-alert>
-        </template>
         
-        <!-- ========== 普通规则表单 ========== -->
-        <template v-else>
-          <el-form-item 
-            v-for="attr in templateAttributes" 
-            :key="attr"
-            :label="attr + ':'"
-            required
-          >
-            <!-- 时长输入 -->
-            <template v-if="attr === '项目时长' && hasTimeRule">
-              <el-input-number 
-                v-model="applyForm.attributeValues[attr]" 
-                :min="0"
-                @change="calculateTimeScore"
-                style="width: 200px"
-              />
-              <span class="ml-2">{{ getTimeUnitLabel(timeUnit) }}</span>
-            </template>
-            
-            <!-- 下拉选择 -->
-            <el-select 
-              v-else
-              v-model="applyForm.attributeValues[attr]" 
-              placeholder="请选择"
-              style="width: 100%"
-              @change="calculateMatchedScore"
-            >
-              <el-option 
-                v-for="option in attributeOptions[attr]" 
-                :key="option"
-                :label="option" 
-                :value="option"
-              />
-            </el-select>
-          </el-form-item>
+        <!-- ========== ✅ CONDITION 条件模板表单 ========== -->
+        <template v-if="currentTemplateType === 'CONDITION'">
+        <el-alert
+          title="选择条件以匹配规则"
+          type="info"
+          :closable="false"
+          class="mb-4"
+        />
 
-          <el-alert
-            v-if="matchedNormalRule || (hasTimeRule && calculatedTimeScore > 0)"
-            type="success"
-            :closable="false"
-            class="mb-4"
+        <!-- 动态属性选择 -->
+        <el-form-item 
+          v-for="attr in templateAttributes" 
+          :key="attr"
+          :label="attr"
+          required
+        >
+          <el-select 
+            v-model="selectedAttributeValues[attr]" 
+            placeholder="请选择"
+            @change="handleAttributeChange"
+            class="w-full"
           >
-            <div class="text-sm">
-              <p v-if="matchedNormalRule" class="font-bold">✅ 匹配规则: {{ matchedNormalRule.ruleName }}</p>
-              <p class="text-lg font-bold text-green-600">预计得分: {{ finalCalculatedScore.toFixed(2) }}分</p>
-            </div>
-          </el-alert>
-        </template>
-
-        <!-- ✅ 证明材料上传 -->
-        <el-form-item label="证明材料" required>
-          <div class="w-full">
-            <p class="text-sm text-gray-500 mb-3">
-              请上传证明材料并填写对应分数（支持图片、PDF等格式）
-            </p>
-            
-            <FileTable
-              v-model="proofItems"
-              :limit="20" 
-              :show-upload-button="true"
-              :show-preview-button="true"
-              :show-download-button="false"
-              :show-delete-button="true"
-              :show-file-value="true"          
-              file-value-label="分数"           
-              file-value-type="number"          
-              :file-value-min="0"              
-              :file-value-max="999.99"         
-              :file-value-precision="2"        
-              file-value-placeholder="输入分数"
-              :disabled="false"
-              file-category="SCORE_PROOF"
-              file-purpose="加分申请证明材料"
-              @value-change="handleProofValueChange"
+            <el-option
+              v-for="option in attributeOptions[attr]"
+              :key="option"
+              :label="option"
+              :value="option"
             />
-
-            <!-- ✅ 统计信息 -->
-            <div class="flex justify-between items-center mt-3 text-sm">
-              <span class="text-gray-600">已添加 {{ proofItems.length }} 个证明材料</span>
-              <span class="font-bold text-blue-600 text-lg">
-                预期总分: {{ totalProofScore.toFixed(2) }} 分
-              </span>
-            </div>
-          </div>
+          </el-select>
         </el-form-item>
 
-        <!-- 备注 -->
-        <el-form-item label="备注">
-          <el-input
-            v-model="applyForm.remark"
-            type="textarea"
-            :rows="3"
-            placeholder="选填：补充说明"
+        <!-- 匹配的规则和分数 -->
+        <el-form-item label="匹配规则">
+          <div v-if="matchedRule" class="w-full">
+            <el-tag type="success">{{ matchedRule.ruleName || `规则 ${matchedRule.id}` }}</el-tag>
+            <div class="text-2xl font-bold text-green-600 mt-2">
+              可获得分数: {{ matchedRule.ruleScore }} 分
+            </div>
+          </div>
+          <div v-else class="text-gray-400">
+            未匹配到规则
+          </div>
+        </el-form-item>
+      </template>
+
+      <!-- TRANSFORM 模板保持不变... -->
+      <template v-else-if="currentTemplateType === 'TRANSFORM'">
+        <el-alert
+          title="输入数值进行分数换算"
+          type="info"
+          :closable="false"
+          class="mb-4"
+        />
+
+        <el-form-item 
+          :label="`输入${selectedTemplate?.inputUnit || '值'}`"
+          required
+        >
+          <el-input-number
+            v-model="conversionInput"
+            :min="0"
+            :precision="2"
+            @change="handleConversionInput"
+            class="w-full"
           />
         </el-form-item>
 
-        <!-- ✅ 最终得分展示 -->
-        <el-form-item label="最终得分">
+        <el-form-item label="换算分数">
           <div class="text-2xl font-bold text-green-600">
-            {{ totalProofScore.toFixed(2) }} 分
+            {{ convertedScore.toFixed(2) }} 分
           </div>
-          <p class="text-xs text-gray-500 mt-1">
-            （基于您填写的证明材料分数之和）
-          </p>
         </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <div class="flex justify-end gap-2">
-          <el-button @click="applyDialogVisible = false">取消</el-button>
-          <el-button 
-            type="primary" 
-            @click="handleSubmitApply"
-            :loading="submitting"
-            :disabled="proofItems.length === 0 || proofItems.some(item => !item.fileValue || Number(item.fileValue) <= 0)"
-          >
-            提交申请
-          </el-button>
-        </div>
       </template>
+
+        <!-- ========== ✅ 证明材料上传 (两种模板通用) ========== -->
+        <el-form-item label="证明材料" required>
+        <div class="w-full">
+          <FileTable
+            v-model="proofItems"
+            :show-value-input="true"
+            :value-label="currentTemplateType === 'CONDITION' ? '证明分数' : '证明值'"
+            :value-placeholder="currentTemplateType === 'CONDITION' ? '请输入该证明对应的分数' : '请输入该证明对应的值'"
+            @value-change="handleProofValueChange"
+          />
+
+          <div class="flex justify-between items-center mt-3 text-sm">
+            <span class="text-gray-500">
+              已上传 {{ proofItems.length }} 个文件
+            </span>
+            <span class="text-blue-600 font-semibold">
+              {{ currentTemplateType === 'CONDITION' ? '证明材料总分' : '证明材料总值' }}: 
+              {{ totalProofScore.toFixed(2) }}
+            </span>
+          </div>
+
+          <el-alert
+            v-if="currentTemplateType === 'TRANSFORM'"
+            title="提示:证明值将在审核通过后累加,并重新计算最终得分"
+            type="warning"
+            :closable="false"
+            class="mt-2"
+          />
+        </div>
+      </el-form-item>
+
+      <el-form-item label="备注">
+        <el-input
+          v-model="applyForm.remark"
+          type="textarea"
+          :rows="3"
+          placeholder="选填:补充说明"
+        />
+      </el-form-item>
+
+      <el-form-item label="预期得分">
+        <div class="text-2xl font-bold text-green-600">
+          {{ 
+            currentTemplateType === 'CONDITION' 
+              ? (matchedRule?.ruleScore || 0).toFixed(2) 
+              : convertedScore.toFixed(2) 
+          }} 分
+        </div>
+        <p class="text-xs text-gray-500 mt-1">
+          {{ 
+            currentTemplateType === 'CONDITION' 
+              ? '(审核通过后将获得此分数)' 
+              : '(基于当前输入值换算,最终分数根据审核通过的证明值重新计算)' 
+          }}
+        </p>
+      </el-form-item>
+    </el-form>
+
+    <template #footer>
+      <div class="flex justify-end gap-2">
+        <el-button @click="applyDialogVisible = false">取消</el-button>
+        <el-button 
+          type="primary" 
+          @click="handleSubmitApply"
+          :loading="submitting"
+          :disabled="
+            proofItems.length === 0 || 
+            proofItems.some(item => !item.fileValue || Number(item.fileValue) <= 0) ||
+            (currentTemplateType === 'CONDITION' && !matchedRule) ||
+            (currentTemplateType === 'TRANSFORM' && (!conversionInput || convertedScore <= 0))
+          "
+        >
+          提交申请
+        </el-button>
+      </div>
+    </template>
     </el-dialog>
   </div>
 </template>
