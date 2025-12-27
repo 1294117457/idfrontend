@@ -123,7 +123,6 @@ const props = defineProps<{
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
-
 const userAvatarUrl = ref('')
 const activePath = ref(route.path)
 

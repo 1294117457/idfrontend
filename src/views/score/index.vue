@@ -329,114 +329,95 @@ const getConversionRangeText = (): string => {
   
   // ==================== ✅ 提交申请 ====================
   const handleSubmitApply = async () => {
-  if (!selectedTemplate.value) return
+   // 验证
+   if (!selectedTemplate.value) {
+    ElMessage.error('请选择模板')
+    return
+  }
 
-  // ✅ 1. 校验证明材料
   if (proofItems.value.length === 0) {
-    ElMessage.warning('请至少上传一个证明材料')
+    ElMessage.error('请至少上传一个证明材料')
     return
   }
 
-  const hasInvalidProof = proofItems.value.some(item => 
-    !item.fileValue || Number(item.fileValue) <= 0
-  )
-  if (hasInvalidProof) {
-    ElMessage.warning('请为所有证明材料填写有效的值')
-    return
-  }
-
-  // ✅ 2. CONDITION 模板校验
+  // ✅ 根据模板类型验证
   if (currentTemplateType.value === 'CONDITION') {
     if (!matchedRule.value) {
-      ElMessage.warning('请完成属性选择以匹配规则')
+      ElMessage.error('未匹配到规则，请检查属性选择')
+      return
+    }
+
+    // 验证分数输入
+    const totalScore = proofItems.value.reduce((sum, item) => sum + (Number(item.fileValue) || 0), 0)
+    if (totalScore !== matchedRule.value.ruleScore) {
+      ElMessage.error(`证明材料总分(${totalScore})与规则分数(${matchedRule.value.ruleScore})不匹配`)
+      return
+    }
+  } else if (currentTemplateType.value === 'TRANSFORM') {
+    if (conversionInput.value === 0) {
+      ElMessage.error('请输入换算值')
+      return
+    }
+
+    if (!matchedConversionRule.value) {
+      ElMessage.error('未匹配到换算规则')
       return
     }
   }
 
-  // ✅ 3. TRANSFORM 模板校验
-  if (currentTemplateType.value === 'TRANSFORM') {
-    if (!conversionInput.value || convertedScore.value <= 0) {
-      ElMessage.warning('请输入有效的换算值')
-      return
-    }
-  }
-
-  submitting.value = true
   try {
-    // ✅ 修复: 正确获取学生信息
-    let studentInfo = userStore.studentInfo
-    
-    if (!studentInfo) {
-      console.log('学生信息不存在，正在加载...')
-      const success = await userStore.fetchStudentInfo()
-      
-      if (!success) {
-        ElMessage.error('无法获取学生信息，请先完成学生信息绑定')
-        return
-      }
-      
-      studentInfo = userStore.studentInfo
-    }
+    submitting.value = true
 
-    // ✅ 再次检查
-    if (!studentInfo) {
-      ElMessage.error('学生信息缺失，请刷新页面或重新登录')
-      return
-    }
-
-    console.log('✅ 学生信息:', studentInfo)
-
-    // ✅ 4. 组装提交数据
+    // ✅ 构造提交数据
     const submitData: SubmitBonusApplicationDto = {
-      studentId: studentInfo.studentId,
-      studentName: studentInfo.fullName,
-      major: studentInfo.major,
-      enrollmentYear: studentInfo.grade,
+      studentId: userStore.userInfo?.studentId || '',
+      studentName: userStore.userInfo?.fullName || '',
+      major: userStore.userInfo?.major || '',
+      enrollmentYear: userStore.userInfo?.grade || new Date().getFullYear(),
       templateName: selectedTemplate.value.templateName,
       templateType: currentTemplateType.value,
       scoreType: selectedTemplate.value.scoreType,
       applyScore: currentTemplateType.value === 'CONDITION' 
         ? matchedRule.value.ruleScore 
         : convertedScore.value,
-      
-      // ✅ TRANSFORM 模板专用字段
-      applyInput: currentTemplateType.value === 'TRANSFORM' 
-        ? conversionInput.value 
-        : undefined,
-      ruleId: currentTemplateType.value === 'CONDITION' 
-        ? matchedRule.value.id 
-        : (matchedConversionRule.value?.id || undefined),
-      
-      ruleValues: currentTemplateType.value === 'CONDITION' 
-        ? selectedAttributeValues.value 
-        : {},
-      
       reviewCount: selectedTemplate.value.reviewCount || 1,
-      
-      // ✅ 证明材料列表
+      remark: applyForm.remark,
       proofItems: proofItems.value.map(item => ({
         proofFileId: item.fileId,
-        proofValue: Number(item.fileValue),
+        proofValue: Number(item.fileValue) || 0,
+        reviewCount: selectedTemplate.value.reviewCount || 1,
         remark: item.remark || ''
-      })),
-      
-      remark: applyForm.remark || ''
+      }))
+    }
+
+    // ✅ CONDITION 模板不需要这些字段
+    if (currentTemplateType.value === 'TRANSFORM') {
+      submitData.applyInput = conversionInput.value
+      submitData.ruleId = matchedConversionRule.value?.ruleId
+    } else {
+      submitData.ruleId = matchedRule.value?.id
     }
 
     console.log('✅ 提交数据:', submitData)
 
     const response = await submitBonusApplication(submitData)
-    
+
     if (response.code === 200) {
-      ElMessage.success('申请提交成功')
+      ElMessage.success('提交成功')
       applyDialogVisible.value = false
-      resetApplyForm()
+      
+      // 重置表单
+      proofItems.value = []
+      applyForm.remark = ''
+      selectedAttributeValues.value = {}
+      conversionInput.value = 0
+      convertedScore.value = 0
     } else {
-      ElMessage.error('提交失败: ' + (response.msg || '未知错误'))
+      ElMessage.error(response.message || '提交失败')
     }
-  } catch (error) {
-    console.error('❌ 提交失败:', error)
-    ElMessage.error('提交失败: ' + (error as Error).message)
+  } catch (error: any) {
+    console.error('提交失败:', error)
+    ElMessage.error(error.message || '提交失败')
   } finally {
     submitting.value = false
   }

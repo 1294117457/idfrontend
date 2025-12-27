@@ -235,262 +235,261 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { 
-  getMyRecords, 
-  cancelBonusRecord,
-  getApplicationProofs,
-  getFilePreviewById,
-  downloadFileById
-} from '@/api/components/apiScore'
-import { useUserStore } from '@/stores/profile'
-
-const userStore = useUserStore()
-
-const myRecords = ref<any[]>([])
-const showDetailDialog = ref(false)
-const selectedRecord = ref<any>(null)
-
-// ✅ 证明材料列表
-const proofsList = ref<any[]>([])
-const proofsLoading = ref(false)
-
-// ==================== 加载记录 ====================
-const loadMyRecords = async () => {
-  try {
-    if (!userStore.studentInfo?.studentId) {
-      console.log('等待学生信息加载...')
+  import { ref, onMounted } from 'vue'
+  import { ElMessage, ElMessageBox } from 'element-plus'
+  import { 
+    getMyRecords, 
+    cancelBonusRecord,
+    getApplicationProofs,
+    getFilePreviewById,
+    downloadFileById
+  } from '@/api/components/apiScore'
+  import { useUserStore } from '@/stores/profile'
+  
+  const userStore = useUserStore()
+  
+  const myRecords = ref<any[]>([])
+  const showDetailDialog = ref(false)
+  const selectedRecord = ref<any>(null)
+  
+  // ✅ 证明材料列表
+  const proofsList = ref<any[]>([])
+  const proofsLoading = ref(false)
+  
+  // ==================== 加载记录 ====================
+  const loadMyRecords = async () => {
+    try {
+      // ✅ 直接调用，不传 studentId
+      const response = await getMyRecords()
+      if (response.code === 200) {
+        myRecords.value = response.data || []
+      } else {
+        ElMessage.error(response.message || '加载失败')
+      }
+    } catch (error) {
+      console.error('加载记录失败:', error)
+      ElMessage.error('加载记录失败')
+    }
+  }
+  
+  // ==================== ✅ 查看详情（加载证明材料） ====================
+  const handleViewDetail = async (row: any) => {
+    selectedRecord.value = { ...row }
+    showDetailDialog.value = true
+    
+    // ✅ 加载该申请的所有证明材料
+    await loadProofs(row.id)
+  }
+  
+  // ✅ 加载证明材料
+  const loadProofs = async (applicationId: number) => {
+    try {
+      proofsLoading.value = true
+      const response = await getApplicationProofs(applicationId)
+      
+      if (response.code === 200) {
+        proofsList.value = response.data.proofs || []
+      } else {
+        ElMessage.error(response.message || '加载证明材料失败')
+      }
+    } catch (error) {
+      console.error('加载证明材料失败:', error)
+      ElMessage.error('加载证明材料失败')
+    } finally {
+      proofsLoading.value = false
+    }
+  }
+  
+  // ✅ 预览证明材料
+  const handlePreviewProof = async (fileId: number) => {
+    try {
+      const urlData = await getFilePreviewById(fileId, 60)
+      if (urlData) {
+        window.open(urlData, '_blank')
+      }
+    } catch (error) {
+      console.error('预览失败:', error)
+      ElMessage.error('预览失败')
+    }
+  }
+  
+  // ✅ 下载证明材料
+  const handleDownloadProof = async (fileId: number, fileName: string) => {
+    try {
+      await downloadFileById(fileId, fileName)
+      ElMessage.success('下载成功')
+    } catch (error) {
+      console.error('下载失败:', error)
+      ElMessage.error('下载失败')
+    }
+  }
+  
+  // ==================== 撤销申请 ====================
+  const handleCancelRecord = async (recordId: number, status: number) => {
+    if (status === 1) {
+      ElMessage.warning('已通过的申请无法撤销，请联系管理员')
       return
     }
     
-    const response = await getMyRecords(userStore.studentInfo.studentId)
-    
-    if (response.code === 200) {
-      myRecords.value = response.data || []
-      console.log('✅ 加载到的记录数:', myRecords.value.length)
-    } else {
-      ElMessage.error('加载记录失败: ' + (response.msg || '未知错误'))
-    }
-  } catch (error) {
-    console.error('❌ 加载记录失败:', error)
-    ElMessage.error('加载记录失败')
-  }
-}
-
-// ==================== ✅ 查看详情（加载证明材料） ====================
-const handleViewDetail = async (row: any) => {
-  selectedRecord.value = { ...row }
-  showDetailDialog.value = true
+    try {
+      await ElMessageBox.confirm('确定要撤销此申请吗？', '提示', {
+        type: 'warning'
+      })
   
-  // ✅ 加载该申请的所有证明材料
-  await loadProofs(row.id)
-}
-
-// ✅ 加载证明材料
-const loadProofs = async (applicationId: number) => {
-  try {
-    proofsLoading.value = true
-    const response = await getApplicationProofs(applicationId)
-    
-    if (response.code === 200) {
-      proofsList.value = response.data.proofs || []
-    } else {
-      ElMessage.error('加载证明材料失败')
+      const response = await cancelBonusRecord(recordId)
+      if (response.code === 200) {
+        ElMessage.success('撤销成功')
+        await loadMyRecords()
+      } else {
+        ElMessage.error(response.message || '撤销失败')
+      }
+    } catch (error: any) {
+      if (error !== 'cancel') {
+        console.error('撤销失败:', error)
+        ElMessage.error('撤销失败')
+      }
     }
-  } catch (error) {
-    console.error('加载证明材料失败:', error)
-    ElMessage.error('加载证明材料失败')
-  } finally {
-    proofsLoading.value = false
-  }
-}
-
-// ✅ 预览证明材料
-const handlePreviewProof = async (fileId: number) => {
-  try {
-    const response = await getFilePreviewById(fileId, 60)
-    if (response.code === 200) {
-      window.open(response.data, '_blank')
-    } else {
-      ElMessage.error('获取预览链接失败')
-    }
-  } catch (error) {
-    console.error('预览失败:', error)
-    ElMessage.error('预览失败')
-  }
-}
-
-// ✅ 下载证明材料
-const handleDownloadProof = async (fileId: number, fileName: string) => {
-  try {
-    await downloadFileById(fileId, fileName)
-    ElMessage.success('下载成功')
-  } catch (error) {
-    console.error('下载失败:', error)
-    ElMessage.error('下载失败')
-  }
-}
-
-// ==================== 撤销申请 ====================
-const handleCancelRecord = async (recordId: string, status: number) => {
-  if (status === 1) {
-    ElMessage.warning('已通过审核的记录不能取消')
-    return
   }
   
-  try {
-    await ElMessageBox.confirm('确定要取消该申请吗?', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
-    
-    const response = await cancelBonusRecord(recordId.toString())
-    
-    if (response.code === 200) {
-      ElMessage.success('取消成功')
+  const handleCancelFromDetail = async () => {
+    if (selectedRecord.value) {
+      await handleCancelRecord(selectedRecord.value.id, selectedRecord.value.status)
       showDetailDialog.value = false
-      await loadMyRecords()
-    } else {
-      ElMessage.error('取消失败: ' + (response.msg || '未知错误'))
-    }
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('❌ 取消申请失败:', error)
-      ElMessage.error('取消申请失败')
     }
   }
-}
-
-const handleCancelFromDetail = async () => {
-  if (selectedRecord.value) {
-    await handleCancelRecord(selectedRecord.value.id, selectedRecord.value.status)
+  
+  // ==================== 辅助函数 ====================
+  const getProgressPercentage = (row: any): number => {
+    const current = row.currentReviewCount || 0
+    const total = row.reviewCount || 1
+    return Math.round((current / total) * 100)
   }
-}
-
-// ==================== 辅助函数 ====================
-const getProgressPercentage = (row: any): number => {
-  const current = row.currentReviewCount || 0
-  const total = row.reviewCount || 1
-  return Math.round((current / total) * 100)
-}
-
-const getProgressStatus = (row: any): string => {
-  if (row.status === 1) return 'success'
-  if (row.status === 2) return 'exception'
-  return ''
-}
-
-const formatRuleValues = (json: string) => {
-  if (!json) return '-'
-  try {
-    const obj = JSON.parse(json)
-    return Object.entries(obj).map(([k, v]) => `${k}: ${v}`).join(', ')
-  } catch {
-    return json
+  
+  const getProgressStatus = (row: any): string => {
+    if (row.status === 1) return 'success'
+    if (row.status === 2) return 'exception'
+    return ''
   }
-}
-
-const parseReviewRecords = (json: string) => {
-  if (!json) return []
-  try {
-    const records = JSON.parse(json)
-    return Array.isArray(records) ? records : []
-  } catch {
-    return []
+  
+  const formatRuleValues = (json: string) => {
+    if (!json) return '-'
+    try {
+      const obj = JSON.parse(json)
+      return Object.entries(obj).map(([k, v]) => `${k}: ${v}`).join(', ')
+    } catch {
+      return '-'
+    }
   }
-}
-
-const formatDateTime = (datetime: string) => {
-  if (!datetime) return '-'
-  try {
-    return new Date(datetime).toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    })
-  } catch {
-    return datetime
+  
+  const parseReviewRecords = (json: string) => {
+    if (!json) return []
+    try {
+      const records = JSON.parse(json)
+      return Array.isArray(records) ? records : []
+    } catch {
+      return []
+    }
   }
-}
-
-const getScoreTypeText = (scoreType: number) => {
-  const map: Record<number, string> = { 0: '学术专长', 1: '综合表现', 2: '学业成绩' }
-  return map[scoreType] || '未知'
-}
-
-const getScoreTypeColor = (scoreType: number) => {
-  const map: Record<number, string> = { 0: 'primary', 1: 'success', 2: 'warning' }
-  return map[scoreType] || 'info'
-}
-
-const getStatusText = (status: number) => {
-  const map: Record<number, string> = { 0: '待审核', 1: '已通过', 2: '已驳回', 4: '已撤销' }
-  return map[status] || '未知'
-}
-
-const getStatusType = (status: number) => {
-  const map: Record<number, any> = { 0: 'warning', 1: 'success', 2: 'danger', 4: 'info' }
-  return map[status] || 'info'
-}
-
-const getProofStatusType = (status: number) => {
-  const map: Record<number, any> = { 0: 'warning', 1: 'success', 2: 'danger' }
-  return map[status] || 'info'
-}
-
-const getProofStatusText = (status: number) => {
-  const map: Record<number, string> = { 0: '待审核', 1: '已通过', 2: '已驳回' }
-  return map[status] || '未知'
-}
-
-const getReviewTimelineType = (action: string) => {
-  const map: Record<string, string> = { approved: 'success', rejected: 'danger', revoked: 'info' }
-  return map[action] || 'info'
-}
-
-const getReviewTagType = (action: string) => {
-  const map: Record<string, any> = { approved: 'success', rejected: 'danger', revoked: 'info' }
-  return map[action] || 'info'
-}
-
-const getActionText = (action: string) => {
-  const map: Record<string, string> = { approved: '审核通过', rejected: '审核驳回', revoked: '已撤销' }
-  return map[action] || '未知操作'
-}
-
-// ==================== 生命周期 ====================
-onMounted(async () => {
-  await userStore.fetchStudentInfo()
-  await loadMyRecords()
-})
-</script>
-
-<style scoped>
-/* ✅ 滚动条样式优化 */
-.max-h-96::-webkit-scrollbar {
-  width: 6px;
-}
-
-.max-h-96::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
-}
-
-.max-h-96::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 3px;
-}
-
-.max-h-96::-webkit-scrollbar-thumb:hover {
-  background: #555;
-}
-
-:deep(.el-progress__text) {
-  font-size: 12px !important;
-}
-</style>
+  
+  const formatDateTime = (datetime: string) => {
+    if (!datetime) return '-'
+    try {
+      return new Date(datetime).toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    } catch {
+      return datetime
+    }
+  }
+  
+  const getScoreTypeText = (scoreType: number) => {
+    const map: Record<number, string> = { 0: '学术专长', 1: '综合表现', 2: '学业成绩' }
+    return map[scoreType] || '未知'
+  }
+  
+  const getScoreTypeColor = (scoreType: number) => {
+    const map: Record<number, string> = { 0: 'primary', 1: 'success', 2: 'warning' }
+    return map[scoreType] || 'info'
+  }
+  
+  const getStatusText = (status: number) => {
+    const map: Record<number, string> = { 0: '待审核', 1: '已通过', 2: '已驳回', 4: '已撤销' }
+    return map[status] || '未知'
+  }
+  
+  const getStatusType = (status: number) => {
+    const map: Record<number, any> = { 0: 'warning', 1: 'success', 2: 'danger', 4: 'info' }
+    return map[status] || 'info'
+  }
+  
+  const getProofStatusType = (status: number) => {
+    const map: Record<number, any> = { 0: 'warning', 1: 'success', 2: 'danger' }
+    return map[status] || 'info'
+  }
+  
+  const getProofStatusText = (status: number) => {
+    const map: Record<number, string> = { 0: '待审核', 1: '已通过', 2: '已驳回' }
+    return map[status] || '未知'
+  }
+  
+  const getReviewTimelineType = (action: string) => {
+    const map: Record<string, string> = {
+      'approved': 'success',
+      'rejected': 'danger',
+      'revoked': 'warning'
+    }
+    return map[action] || 'primary'
+  }
+  
+  const getReviewTagType = (action: string) => {
+    const map: Record<string, any> = {
+      'approved': 'success',
+      'rejected': 'danger',
+      'revoked': 'warning'
+    }
+    return map[action] || 'info'
+  }
+  
+  const getActionText = (action: string) => {
+    const map: Record<string, string> = {
+      'approved': '通过',
+      'rejected': '驳回',
+      'revoked': '撤销'
+    }
+    return map[action] || action
+  }
+  
+  // ==================== 生命周期 ====================
+  onMounted(async () => {
+    await loadMyRecords()
+  })
+  </script>
+  
+  <style scoped>
+  /* ✅ 滚动条样式优化 */
+  .max-h-96::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .max-h-96::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+  }
+  
+  .max-h-96::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 3px;
+  }
+  
+  .max-h-96::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
+  
+  :deep(.el-progress__text) {
+    font-size: 12px !important;
+  }
+  </style>
