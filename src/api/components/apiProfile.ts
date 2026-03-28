@@ -84,8 +84,6 @@ export const getAvatarPreviewUrl = async (
 
 /** 学生基本信息 */
 export interface StudentBasicInfo {
-  studentId: string
-  studentEmail: string
   fullName: string
   major: string
   grade: number               // ✅ 年级（1-4：大一到大四）
@@ -122,7 +120,7 @@ export interface UpdateStudentItem {
 /** 绑定返回 */
 export interface BindItem {
   status: string
-  studentId: string
+  userId: number
 }
 
 // ✅ 学生 API（对应后端 /api/student/*）
@@ -176,10 +174,8 @@ export interface UserInfoItem {
   username: string
   phone?: string
   email: string
-  
+
   // 学生信息
-  studentId?: string
-  studentEmail?: string
   fullName?: string
   major?: string
   grade?: number              // ✅ 年级（1-4）

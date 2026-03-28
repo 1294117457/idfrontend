@@ -22,7 +22,7 @@ export const useUserStore = defineStore('user', () => {
   // 登录状态
   const isLoggedIn = computed(() => !!userInfo.value)
   const hasToken = computed(() => !!localStorage.getItem('accessToken'))
-  const hasStudentInfo = computed(() => !!studentInfo.value?.studentId)
+  const hasStudentInfo = computed(() => !!studentInfo.value?.fullName)
 
   /**
    * ✅ 获取用户基本信息

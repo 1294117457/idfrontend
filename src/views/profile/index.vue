@@ -84,6 +84,13 @@ const getGradeText = (grade?: number) => {
   }
   return gradeMap[grade] || `年级${grade}`
 }
+
+const gradeOptions = [
+  { label: '大一', value: 1 },
+  { label: '大二', value: 2 },
+  { label: '大三', value: 3 },
+  { label: '大四', value: 4 }
+]
 // ==================== 计算属性 ====================
 // ✅ 新增：绑定表单是否可提交
 const canSubmitBindForm = computed(() => {
@@ -103,7 +110,7 @@ const canSubmitEditForm = computed(() => {
 // ==================== 计算属性 ====================
 // ✅ 判断是否有学生信息
 const hasStudentInfo = computed(() => {
-  return userInfo.value?.studentId != null
+  return !!userInfo.value?.fullName
 })
 
 const hasDemandData = computed(() => {
@@ -312,14 +319,13 @@ const loadUserAvatar = async () => {
 
 // ==================== 学生信息管理 ====================
 // ✅ 打开绑定学生信息弹窗
-// ✅ 打开绑定学生信息弹窗
 const showBindDialog = () => {
   bindForm.value = {
     email: '',
     code: '',
     fullName: '',
     major: '',
-    enrollmentYear: new Date().getFullYear(),
+    grade: 1,
     graduationYear: new Date().getFullYear() + 4,
   }
   codeSent.value = false  // ✅ 重置验证码状态
@@ -392,7 +398,7 @@ const bindStudent = async () => {
 const showEditDialog = () => {
   if (userInfo.value) {
     editForm.value = {
-      email: userInfo.value.studentEmail,
+      email: userInfo.value.email,
       code: '',
       fullName: userInfo.value.fullName,
       major: userInfo.value.major,
@@ -545,8 +551,7 @@ onMounted(async () => {
         <!-- ✅ 有学生信息时显示 -->
         <template v-if="hasStudentInfo">
           <el-descriptions :column="2" border class="mb-4">
-            <el-descriptions-item label="学号">{{ userInfo.studentId }}</el-descriptions-item>
-            <el-descriptions-item label="学生邮箱">{{ userInfo.studentEmail }}</el-descriptions-item>
+            <el-descriptions-item label="学生邮箱">{{ userInfo.email }}</el-descriptions-item>
             <el-descriptions-item label="姓名">{{ userInfo.fullName }}</el-descriptions-item>
             <el-descriptions-item label="专业">{{ userInfo.major }}</el-descriptions-item>
             <el-descriptions-item label="年级">

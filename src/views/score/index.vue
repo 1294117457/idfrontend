@@ -369,11 +369,14 @@ const getConversionRangeText = (): string => {
     submitting.value = true
 
     // ✅ 构造提交数据
+    const email = userStore.studentInfo?.email || ''
+    const studentId = email.includes('@stu.xmu.edu.cn') ? email.split('@')[0] : ''
+
     const submitData: SubmitBonusApplicationDto = {
-      studentId: userStore.userInfo?.studentId || '',
-      studentName: userStore.userInfo?.fullName || '',
-      major: userStore.userInfo?.major || '',
-      enrollmentYear: userStore.userInfo?.grade || new Date().getFullYear(),
+      studentId: studentId,
+      studentName: userStore.studentInfo?.fullName || '',
+      major: userStore.studentInfo?.major || '',
+      enrollmentYear: userStore.studentInfo?.grade || new Date().getFullYear(),
       templateName: selectedTemplate.value.templateName,
       templateType: currentTemplateType.value,
       scoreType: selectedTemplate.value.scoreType,
