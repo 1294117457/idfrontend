@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Loading, User, CircleCheck, WarningFilled } from '@element-plus/icons-vue'
+import { Loading, User } from '@element-plus/icons-vue'
 import type { UploadUserFile, UploadRequestOptions } from 'element-plus'
 import {
   type UserInfoItem,
   type StudentItem,
   type UpdateStudentItem,
   type UserBasicInfoUpdate,
-  sendEmailCode,
   bindStudentInfo,
   getUserInfo,
   updateStudentInfo,
@@ -28,8 +27,6 @@ const loading = ref(true)
 const submitting = ref(false)
 const userInfo = ref<UserInfoItem | null>(null)
 const editDialogVisible = ref(false)
-const countdown = ref(0)
-const editCountdown = ref(0)
 
 // ✅ 用户信息编辑相关
 const userEditDialogVisible = ref(false)
@@ -44,33 +41,25 @@ const userEditForm = ref<UserBasicInfoUpdate>({
   avatar: '',
   phone: ''
 })
-// ✅ 新增：验证码发送状态
-const codeSent = ref(false)  // 是否已发送验证码
-const editCodeSent = ref(false)  // 编辑时是否已发送验证码
-
 // ✅ 绑定学生信息弹窗
 const bindDialogVisible = ref(false)
 
 // ✅ 认证信息预览列表
 const previewFileList = ref<UploadUserFile[]>([])
 
-// ✅ 修改绑定表单默认值
+// ✅ 绑定表单
 const bindForm = ref<StudentItem>({
-  email: '',
-  code: '',
   fullName: '',
   major: '',
-  grade: 1,  // ✅ 默认大一
+  grade: 1,
   graduationYear: new Date().getFullYear() + 4,
 })
 
-// ✅ 修改编辑表单
+// ✅ 编辑表单
 const editForm = ref<UpdateStudentItem>({
-  email: '',
-  code: '',
   fullName: '',
   major: '',
-  grade: 1,  // ✅ 默认大一
+  grade: 1,
   graduationYear: undefined
 })
 // ✅ 年级文本转换（只支持1-4）
@@ -92,19 +81,15 @@ const gradeOptions = [
   { label: '大四', value: 4 }
 ]
 // ==================== 计算属性 ====================
-// ✅ 新增：绑定表单是否可提交
+// ✅ 绑定表单是否可提交
 const canSubmitBindForm = computed(() => {
-  return codeSent.value && 
-         bindForm.value.code.trim() !== '' &&
-         bindForm.value.fullName.trim() !== '' &&
+  return bindForm.value.fullName.trim() !== '' &&
          bindForm.value.major.trim() !== ''
 })
 
-// ✅ 新增:编辑表单是否可提交
+// ✅ 编辑表单是否可提交
 const canSubmitEditForm = computed(() => {
-  return editCodeSent.value && 
-         editForm.value.code.trim() !== '' &&
-         editForm.value.fullName.trim() !== '' &&
+  return editForm.value.fullName.trim() !== '' &&
          editForm.value.major.trim() !== ''
 })
 // ==================== 计算属性 ====================
@@ -318,73 +303,28 @@ const loadUserAvatar = async () => {
 }
 
 // ==================== 学生信息管理 ====================
-// ✅ 打开绑定学生信息弹窗
 const showBindDialog = () => {
   bindForm.value = {
-    email: '',
-    code: '',
     fullName: '',
     major: '',
     grade: 1,
     graduationYear: new Date().getFullYear() + 4,
   }
-  codeSent.value = false  // ✅ 重置验证码状态
-  countdown.value = 0
   bindDialogVisible.value = true
 }
 
-const sendCode = async () => {
-  if (!bindForm.value.email) {
-    ElMessage.warning('请输入学生邮箱')
-    return
-  }
-  if (!bindForm.value.email.endsWith('@stu.xmu.edu.cn')) {
-    ElMessage.warning('邮箱必须以@stu.xmu.edu.cn结尾')
-    return
-  }
-  
-  try {
-    const response = await sendEmailCode(bindForm.value.email)
-    if (response.code === 200) {
-      codeSent.value = true  // ✅ 标记已发送
-      ElMessage.success('验证码已发送，有效期10分钟')
-      countdown.value = 60
-      const timer = setInterval(() => {
-        countdown.value--
-        if (countdown.value <= 0) {
-          clearInterval(timer)
-        }
-      }, 1000)
-    }
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.msg || '发送验证码失败')
-  }
-}
-
 const bindStudent = async () => {
-  // ✅ 前置校验
-  if (!codeSent.value) {
-    ElMessage.warning('请先发送验证码')
-    return
-  }
-  
-  if (!bindForm.value.code || bindForm.value.code.trim() === '') {
-    ElMessage.warning('请输入验证码')
-    return
-  }
-  
   if (!bindForm.value.fullName || !bindForm.value.major) {
     ElMessage.warning('请填写完整信息')
     return
   }
-  
+
   submitting.value = true
   try {
     const response = await bindStudentInfo(bindForm.value)
     if (response.code === 200) {
       ElMessage.success('学生信息绑定成功')
       bindDialogVisible.value = false
-      codeSent.value = false  // ✅ 重置状态
       await fetchUserInfo()
     }
   } catch (error: any) {
@@ -394,75 +334,28 @@ const bindStudent = async () => {
   }
 }
 
-// ✅ 优化修改学生信息弹窗
 const showEditDialog = () => {
   if (userInfo.value) {
     editForm.value = {
-      email: userInfo.value.email,
-      code: '',
       fullName: userInfo.value.fullName,
       major: userInfo.value.major,
     }
   }
-  editCodeSent.value = false  // ✅ 重置验证码状态
-  editCountdown.value = 0
   editDialogVisible.value = true
 }
 
-// ✅ 优化编辑发送验证码
-const sendEditCode = async () => {
-  if (!editForm.value.email) {
-    ElMessage.warning('请输入学生邮箱')
-    return
-  }
-  if (!editForm.value.email.endsWith('@stu.xmu.edu.cn')) {
-    ElMessage.warning('邮箱必须以@stu.xmu.edu.cn结尾')
-    return
-  }
-  
-  try {
-    const response = await sendEmailCode(editForm.value.email)
-    if (response.code === 200) {
-      editCodeSent.value = true  // ✅ 标记已发送
-      ElMessage.success('验证码已发送，有效期10分钟')
-      editCountdown.value = 60
-      const timer = setInterval(() => {
-        editCountdown.value--
-        if (editCountdown.value <= 0) {
-          clearInterval(timer)
-        }
-      }, 1000)
-    }
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.msg || '发送验证码失败')
-  }
-}
-
-// ✅ 优化更新学生信息
 const updateStudent = async () => {
-  // ✅ 前置校验
-  if (!editCodeSent.value) {
-    ElMessage.warning('请先发送验证码')
-    return
-  }
-  
-  if (!editForm.value.code || editForm.value.code.trim() === '') {
-    ElMessage.warning('请输入验证码')
-    return
-  }
-  
   if (!editForm.value.fullName || !editForm.value.major) {
     ElMessage.warning('请填写完整信息')
     return
   }
-  
+
   submitting.value = true
   try {
     const response = await updateStudentInfo(editForm.value)
     if (response.code === 200) {
       ElMessage.success('学生信息更新成功')
       editDialogVisible.value = false
-      editCodeSent.value = false  // ✅ 重置状态
       await fetchUserInfo()
     }
   } catch (error: any) {
@@ -523,9 +416,8 @@ onMounted(async () => {
                 <span v-if="userStore.userInfo?.phone">{{ userStore.userInfo.phone }}</span>
                 <span v-else class="text-gray-400">未设置</span>
               </el-descriptions-item>
-              <el-descriptions-item label="邮箱" :span="2">
-                <span v-if="userStore.userInfo?.email">{{ userStore.userInfo.email }}</span>
-                <span v-else class="text-gray-400">未设置</span>
+              <el-descriptions-item label="邮箱（账号）" :span="2">
+                <span>{{ userStore.userInfo?.username }}</span>
               </el-descriptions-item>
             </el-descriptions>
           </div>
@@ -551,7 +443,7 @@ onMounted(async () => {
         <!-- ✅ 有学生信息时显示 -->
         <template v-if="hasStudentInfo">
           <el-descriptions :column="2" border class="mb-4">
-            <el-descriptions-item label="学生邮箱">{{ userInfo.email }}</el-descriptions-item>
+            <el-descriptions-item label="学生邮箱（账号）">{{ userInfo.username }}</el-descriptions-item>
             <el-descriptions-item label="姓名">{{ userInfo.fullName }}</el-descriptions-item>
             <el-descriptions-item label="专业">{{ userInfo.major }}</el-descriptions-item>
             <el-descriptions-item label="年级">
@@ -664,63 +556,9 @@ onMounted(async () => {
       </template>
     </el-dialog>
 
-    <!-- ✅ 绑定学生信息弹窗 -->
+    <!-- ✅ 绑定学生信息弹窗（无需验证码，注册时已验证学校邮箱） -->
     <el-dialog v-model="bindDialogVisible" title="绑定学生信息" width="600px" :close-on-click-modal="false">
       <el-form :model="bindForm" label-width="120px">
-        <!-- ✅ 优化邮箱验证码布局 -->
-        <el-form-item label="学生邮箱" required>
-          <div class="w-full space-y-2">
-            <div class="flex gap-2">
-              <el-input 
-                v-model="bindForm.email" 
-                placeholder="请输入学生邮箱(以@stu.xmu.edu.cn结尾)"
-                :disabled="codeSent"
-                clearable
-              >
-                <template #suffix>
-                  <el-icon v-if="codeSent" class="text-green-500">
-                    <CircleCheck />
-                  </el-icon>
-                </template>
-              </el-input>
-              <el-button 
-                @click="sendCode" 
-                :disabled="countdown > 0 || codeSent"
-                :type="codeSent ? 'success' : 'primary'"
-                class="send-code-btn"
-              >
-                <el-icon v-if="codeSent" class="mr-1"><CircleCheck /></el-icon>
-                {{ codeSent ? '已发送' : (countdown > 0 ? `${countdown}秒后重试` : '发送验证码') }}
-              </el-button>
-            </div>
-            <div class="text-xs text-gray-500 flex items-center gap-1">
-              <el-icon><InfoFilled /></el-icon>
-              <span>验证码有效期10分钟，发送后不可更改邮箱</span>
-            </div>
-          </div>
-        </el-form-item>
-
-        <!-- ✅ 优化验证码输入 -->
-        <el-form-item label="验证码" required>
-          <el-input 
-            v-model="bindForm.code" 
-            placeholder="请输入验证码"
-            maxlength="6"
-            show-word-limit
-            :disabled="!codeSent"
-          >
-            <template #prefix>
-              <el-icon v-if="!codeSent" class="text-gray-400">
-                <Lock />
-              </el-icon>
-            </template>
-          </el-input>
-          <div v-if="!codeSent" class="text-xs text-amber-600 mt-1 flex items-center gap-1">
-            <el-icon><WarningFilled /></el-icon>
-            <span>请先发送验证码</span>
-          </div>
-        </el-form-item>
-
         <el-form-item label="姓名" required>
           <el-input v-model="bindForm.fullName" placeholder="请输入姓名" maxlength="20" show-word-limit />
         </el-form-item>
@@ -741,98 +579,32 @@ onMounted(async () => {
         </el-form-item>
 
         <el-form-item label="毕业年份" required>
-          <el-input-number 
-            v-model="bindForm.graduationYear" 
-            :min="2000" 
+          <el-input-number
+            v-model="bindForm.graduationYear"
+            :min="2000"
             :max="2035"
             controls-position="right"
             class="w-full"
           />
         </el-form-item>
       </el-form>
-      
+
       <template #footer>
-        <div class="flex justify-between items-center">
-          <div v-if="!canSubmitBindForm" class="text-sm text-amber-600 flex items-center gap-1">
-            <el-icon><WarningFilled /></el-icon>
-            <span>请先发送验证码并填写完整信息</span>
-          </div>
-          <div v-else class="text-sm text-green-600 flex items-center gap-1">
-            <el-icon><CircleCheck /></el-icon>
-            <span>信息已完善，可以提交</span>
-          </div>
-          <div class="flex gap-2">
-            <el-button @click="bindDialogVisible = false">取消</el-button>
-            <el-button 
-              type="primary" 
-              @click="bindStudent" 
-              :loading="submitting"
-              :disabled="!canSubmitBindForm"
-            >
-              确定绑定
-            </el-button>
-          </div>
-        </div>
+        <el-button @click="bindDialogVisible = false">取消</el-button>
+        <el-button
+          type="primary"
+          @click="bindStudent"
+          :loading="submitting"
+          :disabled="!canSubmitBindForm"
+        >
+          确定绑定
+        </el-button>
       </template>
     </el-dialog>
 
-    <!-- ✅ 优化后的修改学生信息弹窗 -->
+    <!-- ✅ 修改学生信息弹窗（无需验证码） -->
     <el-dialog v-model="editDialogVisible" title="修改学生信息" width="600px" :close-on-click-modal="false">
       <el-form :model="editForm" label-width="120px">
-        <!-- ✅ 优化邮箱验证码布局 -->
-        <el-form-item label="学生邮箱" required>
-          <div class="w-full space-y-2">
-            <div class="flex gap-2">
-              <el-input 
-                v-model="editForm.email" 
-                placeholder="请输入学生邮箱"
-                :disabled="true"
-                clearable
-              >
-                <template #suffix>
-                  <el-icon v-if="editCodeSent" class="text-green-500">
-                    <CircleCheck />
-                  </el-icon>
-                </template>
-              </el-input>
-              <el-button 
-                @click="sendEditCode" 
-                :disabled="editCountdown > 0 || editCodeSent"
-                :type="editCodeSent ? 'success' : 'primary'"
-                class="send-code-btn"
-              >
-                <el-icon v-if="editCodeSent" class="mr-1"><CircleCheck /></el-icon>
-                {{ editCodeSent ? '已发送' : (editCountdown > 0 ? `${editCountdown}秒后重试` : '发送验证码') }}
-              </el-button>
-            </div>
-            <div class="text-xs text-gray-500 flex items-center gap-1">
-              <el-icon><InfoFilled /></el-icon>
-              <span>验证码有效期10分钟</span>
-            </div>
-          </div>
-        </el-form-item>
-
-        <!-- ✅ 优化验证码输入 -->
-        <el-form-item label="验证码" required>
-          <el-input 
-            v-model="editForm.code" 
-            placeholder="请输入验证码"
-            maxlength="6"
-            show-word-limit
-            :disabled="!editCodeSent"
-          >
-            <template #prefix>
-              <el-icon v-if="!editCodeSent" class="text-gray-400">
-                <Lock />
-              </el-icon>
-            </template>
-          </el-input>
-          <div v-if="!editCodeSent" class="text-xs text-amber-600 mt-1 flex items-center gap-1">
-            <el-icon><WarningFilled /></el-icon>
-            <span>请先发送验证码</span>
-          </div>
-        </el-form-item>
-
         <el-form-item label="姓名" required>
           <el-input v-model="editForm.fullName" placeholder="请输入姓名" maxlength="20" show-word-limit />
         </el-form-item>
@@ -841,14 +613,14 @@ onMounted(async () => {
           <el-input v-model="editForm.major" placeholder="请输入专业" maxlength="50" show-word-limit />
         </el-form-item>
       </el-form>
-      
+
       <template #footer>
         <div class="flex justify-end items-center">
           <div class="flex gap-2">
             <el-button @click="editDialogVisible = false">取消</el-button>
-            <el-button 
-              type="primary" 
-              @click="updateStudent" 
+            <el-button
+              type="primary"
+              @click="updateStudent"
               :loading="submitting"
               :disabled="!canSubmitEditForm"
             >

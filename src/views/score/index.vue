@@ -368,9 +368,9 @@ const getConversionRangeText = (): string => {
   try {
     submitting.value = true
 
-    // ✅ 构造提交数据
-    const email = userStore.studentInfo?.email || ''
-    const studentId = email.includes('@stu.xmu.edu.cn') ? email.split('@')[0] : ''
+    // ✅ 从 username（学校邮箱）提取学号
+    const username = userStore.userInfo?.username || ''
+    const studentId = username.includes('@stu.xmu.edu.cn') ? username.split('@')[0] : ''
 
     const submitData: SubmitBonusApplicationDto = {
       studentId: studentId,

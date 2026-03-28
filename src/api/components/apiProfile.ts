@@ -13,8 +13,7 @@ export interface ApiResponse<T = any> {
 /** 用户基本信息 */
 export interface UserBasicInfo {
   userId: number
-  username: string
-  email: string
+  username: string  // 即学校邮箱
   phone?: string
   avatar?: string
   nickname?: string
@@ -99,21 +98,17 @@ export interface StudentBasicInfo {
 
 /** 学生信息绑定/更新参数 */
 export interface StudentItem {
-  email: string
-  code: string
   fullName: string
   major: string
-  grade: number               // ✅ 改为年级
+  grade: number
   graduationYear: number
 }
 
-/** 学生信息更新参数（需要验证码）*/
+/** 学生信息更新参数 */
 export interface UpdateStudentItem {
-  email: string
-  code: string
   fullName: string
   major: string
-  grade?: number              // ✅ 添加年级
+  grade?: number
   graduationYear?: number
 }
 
@@ -123,21 +118,13 @@ export interface BindItem {
   userId: number
 }
 
-// ✅ 学生 API（对应后端 /api/student/*）
+// ✅ 学生 API（对应后端 /api/user/student/*）
 
 /**
- * 发送学生邮箱验证码
- */
-export const sendEmailCode = async (email: string): Promise<ApiResponse<{ status: string; validMinutes: number }>> => {
-  const response = await apiClient.post('/api/student/send-code', { email })
-  return response.data
-}
-
-/**
- * 绑定学生信息
+ * 绑定学生信息（无需验证码，注册时已通过学校邮箱验证）
  */
 export const bindStudentInfo = async (studentData: StudentItem): Promise<ApiResponse<BindItem>> => {
-  const response = await apiClient.post('/api/student/bind', studentData)
+  const response = await apiClient.post('/api/user/student/bind', studentData)
   return response.data
 }
 
@@ -145,15 +132,15 @@ export const bindStudentInfo = async (studentData: StudentItem): Promise<ApiResp
  * 获取学生基本信息
  */
 export const getStudentBasicInfo = async (): Promise<ApiResponse<StudentBasicInfo>> => {
-  const response = await apiClient.get('/api/student/info')
+  const response = await apiClient.get('/api/user/student/info')
   return response.data
 }
 
 /**
- * 更新学生信息（需要验证码）
+ * 更新学生信息
  */
 export const updateStudentInfo = async (updateData: UpdateStudentItem): Promise<ApiResponse<string>> => {
-  const response = await apiClient.put('/api/student/info', updateData)
+  const response = await apiClient.put('/api/user/student/info', updateData)
   return response.data
 }
 
@@ -161,7 +148,7 @@ export const updateStudentInfo = async (updateData: UpdateStudentItem): Promise<
  * 确认学生信息
  */
 export const confirmStudentInfo = async (): Promise<ApiResponse<string>> => {
-  const response = await apiClient.post('/api/student/confirm')
+  const response = await apiClient.post('/api/user/student/confirm')
   return response.data
 }
 
@@ -171,14 +158,13 @@ export const confirmStudentInfo = async (): Promise<ApiResponse<string>> => {
 export interface UserInfoItem {
   // 用户信息
   userId: number
-  username: string
+  username: string  // 即学校邮箱
   phone?: string
-  email: string
 
   // 学生信息
   fullName?: string
   major?: string
-  grade?: number              // ✅ 年级（1-4）
+  grade?: number
   graduationYear?: number
   gpa?: number
   academicScore?: number
