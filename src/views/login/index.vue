@@ -33,6 +33,7 @@ const router = useRouter()
 //验证码相关================================
 const captchaUrl = ref('')
 const captchaData = ref<CaptchaResponse | null>(null)
+const isLoggingIn = ref(false)
 
 //刷新验证码
 const refreshCaptcha = async () => {
@@ -72,7 +73,9 @@ const validate = (): boolean => {
 
 //点击登录提交表单
 const submitLogin = async () => {
+  if (isLoggingIn.value) return
   if (!validate()) return;
+  isLoggingIn.value = true
   try {
     const response = await loginPost(loginBody.value);
     console.log('登录响应', response);
@@ -87,13 +90,14 @@ const submitLogin = async () => {
         ElMessage.error('请绑定学生信息')
       }
     } else {
-      refreshCaptcha(); // 验证码错误时刷新
       ElMessage.error(response.msg || '登录失败');
     }
   } catch (error) {
-    refreshCaptcha();
     console.error('登录失败', error);
     ElMessage.error('网络错误,请稍后重试');
+  } finally {
+    isLoggingIn.value = false
+    refreshCaptcha();
   }
 }
 
@@ -521,7 +525,7 @@ onUnmounted(() => {
               </div>
             </el-form-item>
             <el-form-item>
-              <button type="submit" class="h-12 w-full flex flex-row items-center justify-center bg-blue-700 font-[700] text-[20px] py-3text-xl tracking-[0.1em] text-white rounded-lg transition cursor-pointer  hover:bg-[#4672F4] active:scale-95" native-type="submit">登 录</button>
+              <button type="submit" :disabled="isLoggingIn" class="h-12 w-full flex flex-row items-center justify-center bg-blue-700 font-[700] text-[20px] py-3text-xl tracking-[0.1em] text-white rounded-lg transition cursor-pointer  hover:bg-[#4672F4] active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed" native-type="submit">{{ isLoggingIn ? '登录中...' : '登 录' }}</button>
             </el-form-item>
             <div class="flex justify-between mt-7 text-gray-300 text-base font-bold">
               <span class="cursor-pointer" @click="handleRegister()">注册账号</span>
