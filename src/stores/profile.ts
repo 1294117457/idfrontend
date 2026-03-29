@@ -65,19 +65,28 @@ export const useUserStore = defineStore('user', () => {
 
   /**
    * ✅ 加载头像 URL
+   * 新版：avatar 字段存储的是直链 URL（http://...），直接使用；
+   * 兼容旧版：若 avatar 是纯数字 fileId，走预签名 URL 流程
    */
   const loadAvatarUrl = async (forceRefresh: boolean = false): Promise<string> => {
     const avatar = userInfo.value?.avatar
-    
+
     if (!avatar) {
       avatarUrl.value = ''
       return ''
     }
 
+    // 新版：直链 URL，直接使用
+    if (avatar.startsWith('http')) {
+      avatarUrl.value = avatar
+      avatarUrlExpireTime.value = Number.MAX_SAFE_INTEGER
+      return avatar
+    }
+
+    // 旧版兼容：fileId 数字字符串，走预签名流程
     const now = Date.now()
     const bufferTime = 5 * 60 * 1000
     if (!forceRefresh && avatarUrl.value && avatarUrlExpireTime.value > now + bufferTime) {
-      console.log('✅ 使用缓存的头像 URL')
       return avatarUrl.value
     }
 
@@ -90,11 +99,10 @@ export const useUserStore = defineStore('user', () => {
     try {
       const expiryMinutes = 60
       const response = await getAvatarPreviewUrl(avatarId, expiryMinutes)
-      
+
       if (response.code === 200) {
         avatarUrl.value = response.data
         avatarUrlExpireTime.value = now + expiryMinutes * 60 * 1000
-        console.log('✅ 头像 URL 加载成功')
         return avatarUrl.value
       }
     } catch (error) {

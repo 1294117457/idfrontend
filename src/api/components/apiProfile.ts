@@ -54,13 +54,13 @@ export const updateUserBasicInfo = async (updateData: UserBasicInfoUpdate): Prom
 }
 
 /**
- * 上传头像
+ * 上传头像，返回直接访问的公开 URL
  */
-export const uploadAvatar = async (file: File): Promise<ApiResponse<AvatarUploadResult>> => {
+export const uploadAvatar = async (file: File): Promise<ApiResponse<string>> => {
   const formData = new FormData()
   formData.append('file', file)
 
-  const response = await apiClient.post(`${apiBaseUrl}/api/file/avatar`, formData, {
+  const response = await apiClient.post('/api/file/avatar', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   })
   return response.data
