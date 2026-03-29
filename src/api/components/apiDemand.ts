@@ -49,8 +49,8 @@ export const saveDemandApplicationWithFileIds = async (
   files: ProofFileItem[]
 ): Promise<ApiResponse<any>> => {
   const response = await apiClient.post('/api/demand-application/submit', {
-    demandData: JSON.stringify(applications),
-    proofFiles: files  // ✅ 直接传递 [{fileId, fileName}] 格式
+    applications: applications,
+    proofFiles: files
   })
   return response.data
 }
