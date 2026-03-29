@@ -60,13 +60,13 @@
             <el-button type="primary" size="small" @click="handleViewDetail(row)">
               详情
             </el-button>
-            <el-button 
-              type="danger" 
-              size="small" 
-              @click="handleCancelRecord(row.id, row.status)"
-              :disabled="row.status === 1"
+            <el-button
+              v-if="row.status === 2 || row.status === 4"
+              type="warning"
+              size="small"
+              @click="handleResubmit(row.id)"
             >
-              撤销
+              重新提交
             </el-button>
           </template>
         </el-table-column>
@@ -165,19 +165,27 @@
               
               <el-table-column label="操作" width="200" align="center">
                 <template #default="{ row }">
-                  <el-button 
-                    type="primary" 
+                  <el-button
+                    type="primary"
                     size="small"
                     @click="handlePreviewProof(row.proofFileId)"
                   >
                     预览
                   </el-button>
-                  <el-button 
-                    type="success" 
+                  <el-button
+                    type="success"
                     size="small"
                     @click="handleDownloadProof(row.proofFileId, row.remark)"
                   >
                     下载
+                  </el-button>
+                  <el-button
+                    v-if="row.status === 2 && selectedRecord?.status === 0"
+                    type="warning"
+                    size="small"
+                    @click="handleResubmitProof(row)"
+                  >
+                    重提
                   </el-button>
                 </template>
               </el-table-column>
@@ -221,12 +229,12 @@
       <template #footer>
         <div class="flex justify-end gap-2">
           <el-button @click="showDetailDialog = false">关闭</el-button>
-          <el-button 
-            type="danger"
-            @click="handleCancelFromDetail"
-            :disabled="selectedRecord?.status === 1"
+          <el-button
+            v-if="selectedRecord?.status === 2 || selectedRecord?.status === 4"
+            type="warning"
+            @click="handleResubmitFromDetail"
           >
-            撤销申请
+            重新提交申请
           </el-button>
         </div>
       </template>
@@ -237,9 +245,10 @@
 <script setup lang="ts">
   import { ref, onMounted } from 'vue'
   import { ElMessage, ElMessageBox } from 'element-plus'
-  import { 
-    getMyRecords, 
-    cancelBonusRecord,
+  import {
+    getMyRecords,
+    resubmitApplication,
+    resubmitProof,
     getApplicationProofs,
     getFilePreviewById,
     downloadFileById
@@ -324,37 +333,54 @@
     }
   }
   
-  // ==================== 撤销申请 ====================
-  const handleCancelRecord = async (recordId: number, status: number) => {
-    if (status === 1) {
-      ElMessage.warning('已通过的申请无法撤销，请联系管理员')
-      return
-    }
-    
+  // ==================== 重新提交申请 ====================
+  const handleResubmit = async (recordId: number) => {
     try {
-      await ElMessageBox.confirm('确定要撤销此申请吗？', '提示', {
+      await ElMessageBox.confirm('确定要重新提交此申请吗？所有证明材料将重置为待审核状态。', '提示', {
         type: 'warning'
       })
-  
-      const response = await cancelBonusRecord(recordId)
+      const response = await resubmitApplication(recordId)
       if (response.code === 200) {
-        ElMessage.success('撤销成功')
+        ElMessage.success('已重新提交，等待审核')
         await loadMyRecords()
       } else {
-        ElMessage.error(response.message || '撤销失败')
+        ElMessage.error(response.message || '提交失败')
       }
     } catch (error: any) {
       if (error !== 'cancel') {
-        console.error('撤销失败:', error)
-        ElMessage.error('撤销失败')
+        ElMessage.error('提交失败')
       }
     }
   }
-  
-  const handleCancelFromDetail = async () => {
+
+  const handleResubmitFromDetail = async () => {
     if (selectedRecord.value) {
-      await handleCancelRecord(selectedRecord.value.id, selectedRecord.value.status)
+      await handleResubmit(selectedRecord.value.id)
       showDetailDialog.value = false
+    }
+  }
+
+  // ==================== 重新提交证明材料 ====================
+  const handleResubmitProof = async (proof: any) => {
+    try {
+      await ElMessageBox.confirm('确定要重新提交此证明材料吗？审核记录将被清空。', '提示', {
+        type: 'warning'
+      })
+      const response = await resubmitProof(proof.id, {
+        proofFileId: proof.proofFileId,
+        proofValue: proof.proofValue,
+        remark: proof.remark
+      })
+      if (response.code === 200) {
+        ElMessage.success('重新提交成功，等待审核')
+        await loadProofs(selectedRecord.value.id)
+      } else {
+        ElMessage.error(response.message || '提交失败')
+      }
+    } catch (error: any) {
+      if (error !== 'cancel') {
+        ElMessage.error('提交失败')
+      }
     }
   }
   

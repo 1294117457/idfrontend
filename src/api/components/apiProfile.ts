@@ -16,14 +16,12 @@ export interface UserBasicInfo {
   username: string  // 即学校邮箱
   phone?: string
   avatar?: string
-  nickname?: string
   role: string
   status: string
 }
 
 /** 用户信息更新参数 */
 export interface UserBasicInfoUpdate {
-  nickname?: string
   avatar?: string
   phone?: string
 }

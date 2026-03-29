@@ -37,7 +37,6 @@ const userAvatarUrl = ref('')
 const newAvatarFileId = ref<number | null>(null)
 
 const userEditForm = ref<UserBasicInfoUpdate>({
-  nickname: '',
   avatar: '',
   phone: ''
 })
@@ -172,7 +171,6 @@ const handleGetFileUrl = async (fileUrl: string, type: number) => {
 // ==================== ✅ 用户信息编辑功能 ====================
 const showUserEditDialog = async () => {
   userEditForm.value = {
-    nickname: userStore.userInfo?.nickname || '',
     avatar: userStore.userInfo?.avatar || '',
     phone: userStore.userInfo?.phone || ''
   }
@@ -180,15 +178,20 @@ const showUserEditDialog = async () => {
   newAvatarFileId.value = null
   
   if (userStore.userInfo?.avatar) {
-    const avatarId = parseInt(userStore.userInfo.avatar)
-    if (!isNaN(avatarId) && avatarId > 0) {
-      try {
-        const response = await getAvatarPreviewUrl(avatarId, 60)
-        if (response.code === 200) {
-          avatarPreviewUrl.value = response.data
+    const avatar = userStore.userInfo.avatar
+    if (avatar.startsWith('http')) {
+      avatarPreviewUrl.value = avatar
+    } else {
+      const avatarId = parseInt(avatar)
+      if (!isNaN(avatarId) && avatarId > 0) {
+        try {
+          const response = await getAvatarPreviewUrl(avatarId, 60)
+          if (response.code === 200) {
+            avatarPreviewUrl.value = response.data
+          }
+        } catch (e) {
+          console.error('获取头像预览失败:', e)
         }
-      } catch (e) {
-        console.error('获取头像预览失败:', e)
       }
     }
   }
@@ -215,17 +218,13 @@ const handleAvatarUpload = async (options: UploadRequestOptions) => {
   uploadingAvatar.value = true
   try {
     const response = await uploadAvatar(options.file as File)
-    
+
     if (response.code === 200) {
-      const fileId = response.data.fileId
-      newAvatarFileId.value = fileId
-      userEditForm.value.avatar = String(fileId)
-      
-      const previewResponse = await getAvatarPreviewUrl(fileId, 60)
-      if (previewResponse.code === 200) {
-        avatarPreviewUrl.value = previewResponse.data
-      }
-      
+      const avatarUrl = response.data  // 后端返回直链 URL 字符串
+      newAvatarFileId.value = null
+      userEditForm.value.avatar = avatarUrl
+      avatarPreviewUrl.value = avatarUrl
+
       ElMessage.success('头像上传成功')
     } else {
       ElMessage.error(response.msg || '头像上传失败')
@@ -247,7 +246,6 @@ const handleUpdateUserInfo = async () => {
   updatingUser.value = true
   try {
     const response = await updateUserBasicInfo({
-      nickname: userEditForm.value.nickname || undefined,
       avatar: userEditForm.value.avatar || undefined,
       phone: userEditForm.value.phone || undefined
     })
@@ -257,7 +255,6 @@ const handleUpdateUserInfo = async () => {
       userEditDialogVisible.value = false
       
       userStore.updateUserInfo({
-        nickname: userEditForm.value.nickname,
         avatar: userEditForm.value.avatar,
         phone: userEditForm.value.phone
       })
@@ -288,7 +285,12 @@ const loadUserAvatar = async () => {
     userAvatarUrl.value = ''
     return
   }
-  
+  // 新版：直链 URL，直接使用
+  if (avatar.startsWith('http')) {
+    userAvatarUrl.value = avatar
+    return
+  }
+  // 旧版兼容：fileId 数字字符串
   const avatarId = parseInt(avatar)
   if (!isNaN(avatarId) && avatarId > 0) {
     try {
@@ -408,10 +410,6 @@ onMounted(async () => {
             <el-descriptions :column="2" border>
               <el-descriptions-item label="用户ID">{{ userStore.userInfo?.userId }}</el-descriptions-item>
               <el-descriptions-item label="用户名">{{ userStore.userInfo?.username }}</el-descriptions-item>
-              <el-descriptions-item label="昵称">
-                <span v-if="userStore.userInfo?.nickname">{{ userStore.userInfo.nickname }}</span>
-                <span v-else class="text-gray-400">未设置</span>
-              </el-descriptions-item>
               <el-descriptions-item label="手机号">
                 <span v-if="userStore.userInfo?.phone">{{ userStore.userInfo.phone }}</span>
                 <span v-else class="text-gray-400">未设置</span>
@@ -539,10 +537,6 @@ onMounted(async () => {
             </el-upload>
           </div>
           <div class="text-xs text-gray-400 mt-2">支持 JPG、PNG 格式，大小不超过 2MB</div>
-        </el-form-item>
-        
-        <el-form-item label="昵称">
-          <el-input v-model="userEditForm.nickname" placeholder="请输入昵称" maxlength="20" show-word-limit />
         </el-form-item>
         
         <el-form-item label="手机号">

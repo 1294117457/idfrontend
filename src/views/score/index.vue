@@ -8,6 +8,7 @@
     submitBonusApplication,
     type SubmitBonusApplicationDto
   } from '@/api/components/apiScore'
+  import { getScoreFieldConfigs, type FieldConfig } from '@/api/components/apiFieldConfig'
   import { useUserStore } from '@/stores/profile'
   import FileUtil from '@/components/fileUtil.vue'
   import FileTable from '@/components/FileTable.vue' 
@@ -17,25 +18,30 @@
   const userStore = useUserStore()
   
   // ==================== 页面状态 ====================
-  const activeTab = ref('academic')
+  const activeTab = ref('')
   const loading = ref(true)
   const submitting = ref(false)
   const applyDialogVisible = ref(false)
-  
+
+  // ==================== 动态字段配置 ====================
+  const scoreFieldConfigs = ref<FieldConfig[]>([])
+
   // ==================== 模板数据 ====================
   const allTemplates = ref<any[]>([])
-  
-  const academicTemplates = computed(() => 
-    allTemplates.value.filter(t => t.scoreType === 0)
-  )
-  
-  const comprehensiveTemplates = computed(() => 
-    allTemplates.value.filter(t => t.scoreType === 1)
-  )
-  
-  const academicGradeTemplates = computed(() => 
-    allTemplates.value.filter(t => t.scoreType === 2)
-  )
+
+  // 按 field_id 分组，兼容旧 scoreType（field_id 为 null 时按 scoreType 映射）
+  const getTemplatesByFieldId = (fieldId: number) =>
+    allTemplates.value.filter(t => {
+      if (t.fieldId != null) return t.fieldId === fieldId
+      // 旧数据兼容：scoreType 0/1/2 → field_config 中第 1/2/3 个 SCORE 字段
+      const idx = scoreFieldConfigs.value.findIndex(f => f.id === fieldId)
+      return t.scoreType === idx
+    })
+
+  // 保留原始计算属性以防其他地方引用
+  const academicTemplates = computed(() => allTemplates.value.filter(t => t.scoreType === 0))
+  const comprehensiveTemplates = computed(() => allTemplates.value.filter(t => t.scoreType === 1))
+  const academicGradeTemplates = computed(() => allTemplates.value.filter(t => t.scoreType === 2))
   
   // ==================== ✅ CONDITION 模板:属性选择 ====================
   const templateAttributes = ref<string[]>([])
@@ -92,9 +98,24 @@
   const loadTemplates = async () => {
     loading.value = true
     try {
-      const response = await getAvailableTemplates()
-      if (response.code === 200) {
-        allTemplates.value = response.data
+      const [configRes, templateRes] = await Promise.all([
+        getScoreFieldConfigs(),
+        getAvailableTemplates()
+      ])
+      if (configRes.code === 200 && configRes.data.length > 0) {
+        scoreFieldConfigs.value = configRes.data
+        activeTab.value = String(configRes.data[0].id)
+      } else {
+        // 降级：使用硬编码三分类
+        scoreFieldConfigs.value = [
+          { id: -1, fieldKey: 'specialty',     displayName: '学术专长(12分)',  fieldType: 'SCORE', maxScore: 12, sortOrder: 0 },
+          { id: -2, fieldKey: 'comprehensive', displayName: '综合表现(8分)',   fieldType: 'SCORE', maxScore: 8,  sortOrder: 1 },
+          { id: -3, fieldKey: 'academic',      displayName: '学业成绩换算',    fieldType: 'SCORE', maxScore: 80, sortOrder: 2 },
+        ]
+        activeTab.value = '-1'
+      }
+      if (templateRes.code === 200) {
+        allTemplates.value = templateRes.data
       } else {
         ElMessage.error('加载模板失败')
       }
@@ -138,37 +159,40 @@
   // ==================== ✅ CONDITION 模板:属性选择变化时匹配规则 ====================
   const handleAttributeChange = () => {
     const allSelected = templateAttributes.value.every(attr => selectedAttributeValues.value[attr])
-    
+
     if (!allSelected) {
       matchedRule.value = null
       return
     }
-  
+
+    const selectedEntries = Object.entries(selectedAttributeValues.value)
+
     for (const rule of currentTemplateRules.value) {
       if (!rule.attributes || rule.attributes.length === 0) continue
-  
+
       const ruleAttrMap = new Map()
       rule.attributes.forEach((attr: any) => {
-        ruleAttrMap.set(attr.attributeCode, attr.attributeValue)
+        ruleAttrMap.set(attr.attributeCode?.trim(), attr.attributeValue?.trim())
       })
-  
+
+      // 规则属性数量必须与已选数量一致
+      if (ruleAttrMap.size !== selectedEntries.length) continue
+
       let isMatch = true
-      for (const [code, value] of Object.entries(selectedAttributeValues.value)) {
-        if (ruleAttrMap.get(code) !== value) {
+      for (const [code, value] of selectedEntries) {
+        if (ruleAttrMap.get(code?.trim()) !== (value as string)?.trim()) {
           isMatch = false
           break
         }
       }
-  
+
       if (isMatch) {
         matchedRule.value = rule
-        console.log('✅ 匹配到规则:', rule)
         return
       }
     }
-  
+
     matchedRule.value = null
-    console.log('⚠️ 未找到匹配的规则')
   }
   
   // ==================== CONDITION 规则初始化 ====================
@@ -202,39 +226,41 @@
 const inputMin = ref(0)
 const inputMax = ref(999)
 
-// ==================== ✅ TRANSFORM 规则初始化 (修复) ====================
+// ==================== ✅ TRANSFORM 规则初始化（支持多 rule 多区间）====================
 const initConversionRules = (rules: any[]) => {
-  // ✅ 修复: 从第一个规则的 attributes 数组提取所有换算区间
-  if (rules.length === 0 || !rules[0].attributes) {
+  if (rules.length === 0) {
     conversionRules.value = []
     inputMin.value = 0
     inputMax.value = 999
     return
   }
 
-  // ✅ 提取所有属性作为换算规则
-  conversionRules.value = rules[0].attributes.map((attr: any) => {
-    return {
-      id: attr.id,
-      attributeCode: attr.attributeCode,
-      attributeValue: attr.attributeValue,  // 公式
-      inputMin: Number(attr.inputMin),
-      inputMax: Number(attr.inputMax),
-      inputInterval: attr.inputInterval,
-      description: attr.description
+  // 遍历所有 rule，每个 rule 的每个 attribute 是一个换算区间
+  const allIntervals: any[] = []
+  for (const rule of rules) {
+    if (!rule.attributes) continue
+    for (const attr of rule.attributes) {
+      allIntervals.push({
+        ruleId: rule.id,
+        id: attr.id,
+        attributeCode: attr.attributeCode,
+        attributeValue: attr.attributeValue,
+        inputMin: Number(attr.inputMin),
+        inputMax: Number(attr.inputMax),
+        inputInterval: attr.inputInterval,
+        description: attr.description
+      })
     }
-  })
+  }
 
-  // ✅ 动态设置输入范围 (取所有规则的最小和最大值)
+  conversionRules.value = allIntervals
+
   if (conversionRules.value.length > 0) {
     const allMins = conversionRules.value.map(r => r.inputMin)
     const allMaxs = conversionRules.value.map(r => r.inputMax)
     inputMin.value = Math.min(...allMins)
     inputMax.value = Math.max(...allMaxs)
   }
-
-  console.log('✅ 解析到的换算规则:', conversionRules.value)
-  console.log('✅ 输入范围:', inputMin.value, '-', inputMax.value)
 
   conversionInput.value = 0
   convertedScore.value = 0
@@ -449,53 +475,15 @@ const getConversionRangeText = (): string => {
       <!-- 模板卡片列表 -->
       <el-card class="min-h-[100vh]">
         <el-tabs v-model="activeTab">
-          <!-- 学术专长 -->
-          <el-tab-pane label="学术专长(12分)" name="academic">
+          <el-tab-pane
+            v-for="field in scoreFieldConfigs"
+            :key="field.id"
+            :label="field.maxScore != null ? `${field.displayName}(${field.maxScore}分)` : field.displayName"
+            :name="String(field.id)"
+          >
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div 
-                v-for="template in academicTemplates" 
-                :key="template.id"
-                class="border rounded-lg p-4 hover:shadow-lg transition cursor-pointer"
-                @click="openApplyDialog(template)"
-              >
-                <h3 class="text-lg font-bold mb-2">{{ template.templateName }}</h3>
-                <p class="text-sm text-gray-600 mb-2">{{ template.description }}</p>
-                <div class="flex justify-between items-center text-xs">
-                  <el-tag :type="template.templateType === 'CONDITION' ? 'success' : 'warning'">
-                    {{ template.templateType === 'CONDITION' ? '条件匹配' : '分数换算' }}
-                  </el-tag>
-                  <span class="text-blue-600">最高{{ template.templateMaxScore }}分</span>
-                </div>
-              </div>
-            </div>
-          </el-tab-pane>
-  
-          <!-- 综合表现 -->
-          <el-tab-pane label="综合表现(8分)" name="comprehensive">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div 
-                v-for="template in comprehensiveTemplates" 
-                :key="template.id"
-                class="border rounded-lg p-4 hover:shadow-lg transition cursor-pointer"
-                @click="openApplyDialog(template)"
-              >
-                <h3 class="text-lg font-bold mb-2">{{ template.templateName }}</h3>
-                <p class="text-sm text-gray-600 mb-2">{{ template.description }}</p>
-                <div class="flex justify-between items-center text-xs">
-                  <el-tag :type="template.templateType === 'CONDITION' ? 'success' : 'warning'">
-                    {{ template.templateType === 'CONDITION' ? '条件匹配' : '分数换算' }}
-                  </el-tag>
-                  <span class="text-blue-600">最高{{ template.templateMaxScore }}分</span>
-                </div>
-              </div>
-            </div>
-          </el-tab-pane>
-  
-          <!-- 学业成绩 -->
-          <el-tab-pane label="学业成绩换算" name="academic-grade">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div 
-                v-for="template in academicGradeTemplates" 
+              <div
+                v-for="template in getTemplatesByFieldId(field.id)"
                 :key="template.id"
                 class="border rounded-lg p-4 hover:shadow-lg transition cursor-pointer"
                 @click="openApplyDialog(template)"

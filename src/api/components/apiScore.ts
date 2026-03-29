@@ -77,10 +77,29 @@ export const getMyRecords = async () => {
 }
 
 /**
- * ✅ 撤销申请
+ * 撤销申请（后端已禁止，保留兼容）
  */
 export const cancelBonusRecord = async (recordId: number) => {
   const response = await apiClient.delete(`/api/application/cancel/${recordId}`)
+  return response.data
+}
+
+/**
+ * 学生重新提交被驳回或已撤销的申请
+ */
+export const resubmitApplication = async (recordId: number) => {
+  const response = await apiClient.post(`/api/application/resubmit/${recordId}`)
+  return response.data
+}
+
+/**
+ * 学生重新提交被驳回的证明材料
+ */
+export const resubmitProof = async (
+  proofId: number,
+  data: { proofFileId: number; proofValue: number; remark?: string }
+) => {
+  const response = await apiClient.put(`/api/proof/${proofId}/resubmit`, data)
   return response.data
 }
 
