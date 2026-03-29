@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/profile'
+import { getScoreFieldConfigs, type FieldConfig } from '@/api/components/apiFieldConfig'
 
 defineOptions({
   name: 'Welcome',
@@ -9,10 +10,30 @@ defineOptions({
 
 const router = useRouter()
 const userStore = useUserStore()
+const scoreFieldConfigs = ref<FieldConfig[]>([])
+
+const getScoreByFieldKey = (key: string) => {
+  const map: Record<string, string> = {
+    specialty:     'specialtyScore',
+    comprehensive: 'comprehensiveScore',
+    academic:      'academicScore',
+  }
+  const prop = map[key]
+  const val = prop ? (userStore.studentInfo as any)?.[prop] : undefined
+  return val != null ? Number(val).toFixed(2) : '--'
+}
 
 onMounted(async () => {
   if (!userStore.studentInfo) {
     await userStore.fetchStudentInfo()
+  }
+  try {
+    const res = await getScoreFieldConfigs()
+    if (res.code === 200 && res.data.length > 0) {
+      scoreFieldConfigs.value = res.data
+    }
+  } catch {
+    // 降级：使用默认综合得分
   }
 })
 
@@ -77,17 +98,27 @@ const jumpTo = (path: string) => {
 
         <div class="hero-actions">
           <button class="action-btn primary" @click="jumpTo('/home/score/index')">开始加分申请</button>
-          <button class="action-btn secondary" @click="jumpTo('/home/demand')">完善条件信息</button>
+          <button class="action-btn secondary" @click="jumpTo('/home/score/index')">完善条件信息</button>
         </div>
       </div>
 
       <div class="hero-panel reveal-up delay-2">
         <h3>当前概览</h3>
         <div class="panel-grid">
-          <article>
-            <p>综合得分</p>
-            <strong>{{ scoreText }}</strong>
-          </article>
+          <!-- 动态 SCORE 字段分数 -->
+          <template v-if="scoreFieldConfigs.length > 0">
+            <article v-for="f in scoreFieldConfigs" :key="f.id">
+              <p>{{ f.displayName }}</p>
+              <strong>{{ getScoreByFieldKey(f.fieldKey) }}</strong>
+            </article>
+          </template>
+          <!-- 降级：仅显示综合得分 -->
+          <template v-else>
+            <article>
+              <p>综合得分</p>
+              <strong>{{ scoreText }}</strong>
+            </article>
+          </template>
           <article>
             <p>专业</p>
             <strong>{{ userStore.studentInfo?.major || '--' }}</strong>

@@ -37,7 +37,7 @@ export interface ApiResponse<T = any> {
  * 获取启用的需求模板
  */
 export const getActiveTemplates = async (): Promise<ApiResponse<DemandTemplate[]>> => {
-  const response = await apiClient.get('/api/userinfo/getDemandTemplates')
+  const response = await apiClient.get('/api/demand-template/active')
   return response.data
 }
 
@@ -48,7 +48,7 @@ export const saveDemandApplicationWithFileIds = async (
   applications: DemandApplicationItem[],
   files: ProofFileItem[]
 ): Promise<ApiResponse<any>> => {
-  const response = await apiClient.post('/api/userinfo/saveDemandInfoV2', {
+  const response = await apiClient.post('/api/demand-application/submit', {
     demandData: JSON.stringify(applications),
     proofFiles: files  // ✅ 直接传递 [{fileId, fileName}] 格式
   })

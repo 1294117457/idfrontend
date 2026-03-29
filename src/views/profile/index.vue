@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Loading, User } from '@element-plus/icons-vue'
-import type { UploadUserFile, UploadRequestOptions } from 'element-plus'
+import type { UploadRequestOptions } from 'element-plus'
 import {
   type UserInfoItem,
   type StudentItem,
@@ -15,10 +15,7 @@ import {
   uploadAvatar,
   getAvatarPreviewUrl
 } from '@/api/components/apiProfile'
-import { getFileUrl } from '@/api/components/apiScore'
-import FileUtil from '@/components/fileUtil.vue'
 import { useUserStore } from '@/stores/profile'
-import router from '@/router'
 
 const userStore = useUserStore()
 
@@ -42,9 +39,6 @@ const userEditForm = ref<UserBasicInfoUpdate>({
 })
 // ✅ 绑定学生信息弹窗
 const bindDialogVisible = ref(false)
-
-// ✅ 认证信息预览列表
-const previewFileList = ref<UploadUserFile[]>([])
 
 // ✅ 绑定表单
 const bindForm = ref<StudentItem>({
@@ -80,91 +74,30 @@ const gradeOptions = [
   { label: '大四', value: 4 }
 ]
 // ==================== 计算属性 ====================
-// ✅ 绑定表单是否可提交
 const canSubmitBindForm = computed(() => {
   return bindForm.value.fullName.trim() !== '' &&
          bindForm.value.major.trim() !== ''
 })
 
-// ✅ 编辑表单是否可提交
 const canSubmitEditForm = computed(() => {
   return editForm.value.fullName.trim() !== '' &&
          editForm.value.major.trim() !== ''
 })
-// ==================== 计算属性 ====================
-// ✅ 判断是否有学生信息
+
 const hasStudentInfo = computed(() => {
   return !!userInfo.value?.fullName
 })
-
-const hasDemandData = computed(() => {
-  return userInfo.value?.demandValue && userInfo.value.demandValue !== '[]'
-})
-
-const demandApplications = computed(() => {
-  if (!userInfo.value?.demandValue) return []
-  try {
-    return JSON.parse(userInfo.value.demandValue)
-  } catch {
-    return []
-  }
-})
-
-const existingFiles = computed(() => {
-  if (!userInfo.value?.demandFiles) return []
-  try {
-    return JSON.parse(userInfo.value.demandFiles)
-  } catch {
-    return []
-  }
-})
-
-// ==================== 基础功能函数 ====================
 const fetchUserInfo = async () => {
   loading.value = true
   try {
     const response = await getUserInfo()
     if (response.code === 200) {
       userInfo.value = response.data
-      
-      if (userInfo.value.demandFiles) {
-        try {
-          const files = JSON.parse(userInfo.value.demandFiles)
-          previewFileList.value = files.map((url: string, index: number) => ({
-            name: `认证材料${index + 1}.${getFileExtFromUrl(url)}`,
-            url: url,
-            uid: Date.now() + index,
-            status: 'success' as const
-          }))
-        } catch (e) {
-          console.error('解析认证材料失败:', e)
-        }
-      }
     }
   } catch (error: any) {
-    // ✅ 不再判断 400 错误，允许没有学生信息
     console.log('获取用户信息:', error.response?.data?.msg)
   } finally {
     loading.value = false
-  }
-}
-
-const getFileExtFromUrl = (url: string): string => {
-  try {
-    const parts = url.split('.')
-    return parts[parts.length - 1] || 'file'
-  } catch {
-    return 'file'
-  }
-}
-
-const handleGetFileUrl = async (fileUrl: string, type: number) => {
-  try {
-    const response = await getFileUrl(fileUrl, type)
-    return response
-  } catch (error) {
-    console.error('❌ 获取文件链接失败:', error)
-    throw error
   }
 }
 
@@ -367,11 +300,6 @@ const updateStudent = async () => {
   }
 }
 
-// ✅ 跳转到需求认证页面
-const goToDemandPage = () => {
-  router.push('/home/demand')
-}
-
 // ==================== 生命周期 ====================
 onMounted(async () => {
   await userStore.fetchUserBasicInfo()
@@ -458,51 +386,6 @@ onMounted(async () => {
               </el-tag>
             </el-descriptions-item>
           </el-descriptions>
-
-          <!-- ✅ 认证信息展示 -->
-          <el-divider content-position="left">
-            <span class="text-lg font-semibold">保研条件认证信息</span>
-          </el-divider>
-          
-          <div v-if="hasDemandData && demandApplications.length > 0" class="bg-blue-50 p-4 rounded">
-            <div class="flex items-center justify-between mb-3">
-              <span class="text-sm text-gray-600">
-                <el-icon class="text-blue-500"><InfoFilled /></el-icon>
-                如需修改认证信息，请前往"需求认证"页面
-              </span>
-              <el-button type="primary" size="small" @click="goToDemandPage">
-                前往修改
-              </el-button>
-            </div>
-            
-            <el-table :data="demandApplications" border stripe>
-              <el-table-column prop="templateName" label="条件名称" width="200" />
-              <el-table-column prop="selectedCondition" label="选择条件" width="150">
-                <template #default="{ row }">
-                  <el-tag v-if="row.selectedCondition" size="small">{{ row.selectedCondition }}</el-tag>
-                  <span v-else class="text-gray-400">-</span>
-                </template>
-              </el-table-column>
-              <el-table-column prop="inputValue" label="填写内容" min-width="200" />
-            </el-table>
-            
-            <div v-if="existingFiles.length > 0" class="mt-4">
-              <el-divider content-position="left">认证材料</el-divider>
-              <FileUtil
-                v-model="previewFileList"
-                :show-upload-button="false"
-                :show-file-list="true"
-                :show-preview-button="true"
-                :show-delete-button="false"
-                :disabled="true"
-                :get-file-url="handleGetFileUrl"
-              />
-            </div>
-          </div>
-
-          <el-empty v-else description="暂未填写保研条件认证信息" class="my-4">
-            <el-button type="primary" @click="goToDemandPage">立即填写</el-button>
-          </el-empty>
         </template>
 
         <!-- ✅ 无学生信息时显示 -->

@@ -11,8 +11,16 @@
   import { getScoreFieldConfigs, type FieldConfig } from '@/api/components/apiFieldConfig'
   import { useUserStore } from '@/stores/profile'
   import FileUtil from '@/components/fileUtil.vue'
-  import FileTable from '@/components/FileTable.vue' 
+  import FileTable from '@/components/FileTable.vue'
   import type { FileTableItem } from '@/components/FileTable.vue'
+  import {
+    getActiveTemplates,
+    saveDemandApplicationWithFileIds,
+    type DemandTemplate,
+    type DemandApplicationItem
+  } from '@/api/components/apiDemand'
+  import { getUserInfo } from '@/api/components/apiProfile'
+  import type { ProofFileItem } from '@/api/components/apiScore'
   
   // ==================== 用户信息 ====================
   const userStore = useUserStore()
@@ -463,10 +471,117 @@ const getConversionRangeText = (): string => {
     matchedConversionRule.value = null
     applyForm.remark = ''
   }
+
+  // ==================== 条件信息 Tab ====================
+  const demandTemplates = ref<DemandTemplate[]>([])
+  const demandForm = ref<Record<number, DemandApplicationItem>>({})
+  const uploadProofFiles = ref<ProofFileItem[]>([])
+  const existingProofFiles = ref<ProofFileItem[]>([])
+  const loadingDemand = ref(false)
+  const savingDemand = ref(false)
+  const demandDialogVisible = ref(false)
+  const hasDemandData = ref(false)
+
+  const demandApplications = computed(() => Object.values(demandForm.value).filter(v => v.inputValue))
+
+  const parseProofFiles = (json: string): ProofFileItem[] => {
+    if (!json) return []
+    try {
+      const files = JSON.parse(json)
+      if (!Array.isArray(files)) return []
+      if (files.length > 0 && typeof files[0] === 'object' && files[0].fileId !== undefined) {
+        return files as ProofFileItem[]
+      }
+      return files.map((_: any, i: number) => ({ fileId: 0, fileName: `认证材料${i + 1}` }))
+    } catch { return [] }
+  }
+
+  const loadDemandData = async () => {
+    loadingDemand.value = true
+    try {
+      const res = await getUserInfo()
+      if (res.code === 200) {
+        const info = res.data
+        hasDemandData.value = !!(info.demandValue && info.demandValue !== '[]')
+        if (info.demandFiles) {
+          existingProofFiles.value = parseProofFiles(info.demandFiles)
+        }
+        if (hasDemandData.value) {
+          try {
+            const saved: DemandApplicationItem[] = JSON.parse(info.demandValue)
+            saved.forEach(app => {
+              demandForm.value[app.templateId] = app
+            })
+          } catch { /* ignore */ }
+        }
+      }
+    } catch { /* ignore */ } finally {
+      loadingDemand.value = false
+    }
+  }
+
+  const openDemandDialog = async () => {
+    loadingDemand.value = true
+    try {
+      const res = await getActiveTemplates()
+      if (res.code === 200) {
+        demandTemplates.value = res.data || []
+        // init missing form entries
+        demandTemplates.value.forEach(t => {
+          if (!demandForm.value[t.id]) {
+            demandForm.value[t.id] = { templateId: t.id, templateName: t.templateName, selectedCondition: '', inputValue: '' }
+          }
+        })
+        uploadProofFiles.value = [...existingProofFiles.value]
+        demandDialogVisible.value = true
+      } else {
+        ElMessage.error('加载需求模板失败')
+      }
+    } catch {
+      ElMessage.error('加载需求模板失败')
+    } finally {
+      loadingDemand.value = false
+    }
+  }
+
+  const getDemandFormValue = (templateId: number, field: 'selectedCondition' | 'inputValue') =>
+    demandForm.value[templateId]?.[field] || ''
+
+  const updateDemandForm = (templateId: number, field: 'selectedCondition' | 'inputValue', value: string) => {
+    if (!demandForm.value[templateId]) {
+      const t = demandTemplates.value.find(x => x.id === templateId)
+      if (t) demandForm.value[templateId] = { templateId: t.id, templateName: t.templateName, selectedCondition: '', inputValue: '' }
+    }
+    if (demandForm.value[templateId]) demandForm.value[templateId][field] = value || ''
+  }
+
+  const handleSaveDemand = async () => {
+    const applications = Object.values(demandForm.value).filter(v => v.inputValue?.trim())
+    if (applications.length === 0) {
+      ElMessage.warning('请至少填写一个条件的内容')
+      return
+    }
+    savingDemand.value = true
+    try {
+      const res = await saveDemandApplicationWithFileIds(applications, uploadProofFiles.value)
+      if (res.code === 200) {
+        ElMessage.success('保存成功!')
+        demandDialogVisible.value = false
+        await loadDemandData()
+      } else {
+        ElMessage.error('保存失败: ' + (res.msg || '未知错误'))
+      }
+    } catch {
+      ElMessage.error('保存失败')
+    } finally {
+      savingDemand.value = false
+    }
+  }
   
   // ==================== 生命周期 ====================
   onMounted(async () => {
     loadTemplates()
+    loadDemandData()
   })
   </script>
   
@@ -499,10 +614,34 @@ const getConversionRangeText = (): string => {
               </div>
             </div>
           </el-tab-pane>
+
+          <!-- 条件信息 Tab -->
+          <el-tab-pane label="条件信息" name="demand">
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-gray-600 text-sm">填写保研认证条件，如英语水平、违纪次数等</span>
+              <el-button type="primary" size="small" @click="openDemandDialog" :loading="loadingDemand">
+                {{ hasDemandData ? '修改条件信息' : '填写条件信息' }}
+              </el-button>
+            </div>
+
+            <div v-if="hasDemandData && Object.values(demandForm).some(v => v.inputValue)">
+              <el-table :data="Object.values(demandForm).filter(v => v.inputValue)" border stripe>
+                <el-table-column prop="templateName" label="条件名称" width="200" />
+                <el-table-column prop="selectedCondition" label="选择条件" width="150">
+                  <template #default="{ row }">
+                    <el-tag v-if="row.selectedCondition" size="small">{{ row.selectedCondition }}</el-tag>
+                    <span v-else class="text-gray-400">-</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="inputValue" label="填写内容" min-width="200" />
+              </el-table>
+            </div>
+            <el-empty v-else description="暂未填写条件信息" />
+          </el-tab-pane>
         </el-tabs>
       </el-card>
-  
-      <!-- ========== ✅ 申请弹窗 ========== -->
+
+      <!-- ========== 申请弹窗 ========== -->
       <el-dialog 
         v-model="applyDialogVisible" 
         :title="`申请 - ${selectedTemplate?.templateName}`"
@@ -705,11 +844,79 @@ const getConversionRangeText = (): string => {
         </div>
       </template>
     </el-dialog>
+      <!-- ========== 条件信息填写弹窗 ========== -->
+      <el-dialog
+        v-model="demandDialogVisible"
+        :title="hasDemandData ? '修改条件信息' : '填写条件信息'"
+        width="800px"
+        :close-on-click-modal="false"
+      >
+        <div v-if="demandTemplates.length > 0">
+          <div
+            v-for="(template, index) in demandTemplates"
+            :key="template.id"
+            class="demand-row mb-4 p-4 border rounded hover:bg-gray-50"
+          >
+            <div class="flex items-center gap-4">
+              <div class="flex-none w-40">
+                <span class="font-semibold">{{ index + 1 }}. {{ template.templateName }}</span>
+              </div>
+
+              <div class="flex-none w-32" v-if="template.conditions && template.conditions.length > 0">
+                <el-select
+                  :model-value="getDemandFormValue(template.id, 'selectedCondition')"
+                  @update:model-value="(val: string) => updateDemandForm(template.id, 'selectedCondition', val)"
+                  placeholder="选择条件"
+                  size="small"
+                  clearable
+                >
+                  <el-option v-for="cond in template.conditions" :key="cond" :label="cond" :value="cond" />
+                </el-select>
+              </div>
+
+              <div class="flex-1">
+                <el-input
+                  :model-value="getDemandFormValue(template.id, 'inputValue')"
+                  @update:model-value="(val: string) => updateDemandForm(template.id, 'inputValue', val)"
+                  :placeholder="template.placeholder || '请输入'"
+                  size="small"
+                />
+              </div>
+            </div>
+          </div>
+
+          <el-divider content-position="left">认证材料</el-divider>
+          <FileUtil
+            v-model="uploadProofFiles"
+            :limit="5"
+            accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx"
+            upload-text="上传认证材料"
+            tip-text="支持格式: 图片、PDF、Word、Excel，最多5个文件"
+            :show-upload-button="true"
+            :show-preview-button="true"
+            :show-download-button="false"
+            :show-delete-button="true"
+          />
+        </div>
+
+        <template #footer>
+          <div class="flex justify-end gap-2">
+            <el-button @click="demandDialogVisible = false">取消</el-button>
+            <el-button type="primary" @click="handleSaveDemand" :loading="savingDemand">保存</el-button>
+          </div>
+        </template>
+      </el-dialog>
   </div>
 </template>
   
   <style scoped>
   .el-card {
     border-radius: 8px;
+  }
+  .demand-row {
+    transition: all 0.2s ease;
+  }
+  .demand-row:hover {
+    border-color: #3377FF;
   }
   </style>
