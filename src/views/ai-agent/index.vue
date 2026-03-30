@@ -161,8 +161,8 @@
               </div>
             </div>
   
-            <!-- 加载动画 -->
-            <div v-if="isLoading" class="flex justify-start">
+            <!-- 加载动画：仅等待首 token 阶段显示 -->
+            <div v-if="isLoading && !isStreaming" class="flex justify-start">
               <div class="flex items-start gap-2">
                 <div class="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 mt-1">
                   <img
@@ -216,7 +216,7 @@
   
   <script setup lang="ts">
   import { ref, reactive, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
-  import { sendMessage, clearConversation } from '@/api/components/apiAIagent'
+  import { sendMessageStream, clearConversation } from '@/api/components/apiAIagent'
   import { ElMessage } from 'element-plus'
   
   // 定义消息类型
@@ -380,10 +380,12 @@
   // ==================== 原有状态 ====================
   const isOpen = ref(false)
   const isLoading = ref(false)
+  const isStreaming = ref(false)   // 已收到第一个 token（控制加载动画消失时机）
   const hasNewMessage = ref(false)
   const inputMessage = ref('')
   const messages = ref<Message[]>([])
   const messageContainer = ref<HTMLElement | null>(null)
+  let streamController: AbortController | null = null   // 用于取消进行中的流
   
   // 头像加载错误状态
   const avatarError = ref(false)
@@ -415,45 +417,46 @@
     })
   }
   
-  // 发送消息
-  const handleSend = async () => {
+  // 发送消息（流式）
+  const handleSend = () => {
     const message = inputMessage.value.trim()
     if (!message || isLoading.value) return
-  
+
     // 添加用户消息
-    messages.value.push({
-      role: 'user',
-      content: message,
-    })
+    messages.value.push({ role: 'user', content: message })
     inputMessage.value = ''
     scrollToBottom()
-  
-    // 发送请求
+
+    // 预先推入空的 AI 消息占位，流式填充内容
+    messages.value.push({ role: 'assistant', content: '' })
+    const aiMsgIndex = messages.value.length - 1
+
     isLoading.value = true
-    try {
-      const res = await sendMessage(message)
-      if (res.code === 200) {
-        messages.value.push({
-          role: 'assistant',
-          content: res.data,
-        })
-      } else {
-        messages.value.push({
-          role: 'assistant',
-          content: '抱歉，我遇到了一些问题，请稍后再试。',
-        })
-        ElMessage.error(res.msg || '发送失败')
-      }
-    } catch (error) {
-      messages.value.push({
-        role: 'assistant',
-        content: '网络异常，请检查网络连接。',
-      })
-      ElMessage.error('网络异常')
-    } finally {
-      isLoading.value = false
-      scrollToBottom()
-    }
+    isStreaming.value = false
+
+    streamController = sendMessageStream(
+      message,
+      (token) => {
+        isStreaming.value = true
+        messages.value[aiMsgIndex].content += token
+        scrollToBottom()
+      },
+      () => {
+        isLoading.value = false
+        isStreaming.value = false
+        streamController = null
+        scrollToBottom()
+      },
+      (err) => {
+        if (!messages.value[aiMsgIndex].content) {
+          messages.value[aiMsgIndex].content = '抱歉，遇到了一些问题，请稍后再试。'
+        }
+        isLoading.value = false
+        isStreaming.value = false
+        streamController = null
+        ElMessage.error(err || '发送失败')
+      },
+    )
   }
   
   // 清除对话历史
@@ -480,11 +483,16 @@
   // 生命周期
   onMounted(() => {
     loadPosition()
-    
+
     // 3秒后隐藏拖拽提示
     setTimeout(() => {
       showDragTip.value = false
     }, 3000)
+  })
+
+  onUnmounted(() => {
+    // 组件卸载时终止进行中的流请求
+    streamController?.abort()
   })
   </script>
   

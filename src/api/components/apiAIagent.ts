@@ -41,6 +41,73 @@ export const sendMessage = async (message: string): Promise<ApiResponse<string>>
   return response.data
 }
 
+/**
+ * 流式发送消息（SSE）
+ * - onToken: 每收到一个 token 回调
+ * - onDone:  流结束回调
+ * - onError: 出错回调
+ * - 返回 AbortController，调用 .abort() 可中断请求
+ */
+export const sendMessageStream = (
+  message: string,
+  onToken: (token: string) => void,
+  onDone: () => void,
+  onError: (err: string) => void,
+): AbortController => {
+  const controller = new AbortController()
+  const token = localStorage.getItem('accessToken')
+
+  const run = async () => {
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/chat/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ message }),
+        signal: controller.signal,
+      })
+
+      if (!response.ok || !response.body) {
+        onError('网络异常')
+        return
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data:')) continue
+          const data = line.slice(5).trim()   // 兼容 "data:x" 和 "data: x"
+          if (data === '[DONE]') { onDone(); return }
+          try {
+            const parsed = JSON.parse(data)
+            if (parsed.token) onToken(parsed.token)
+            if (parsed.error) { onError(parsed.error); return }
+          } catch { /* 忽略非 JSON 行 */ }
+        }
+      }
+      onDone()
+    } catch (err: unknown) {
+      if ((err as Error)?.name === 'AbortError') return  // 用户主动取消，不报错
+      onError('网络异常，请检查连接')
+    }
+  }
+
+  run()
+  return controller
+}
+
 /** 清除对话历史 */
 export const clearConversation = async (): Promise<ApiResponse<void>> => {
   const response = await apiClient.post(`${apiBaseUrl}/api/chat/clear`)
