@@ -37,7 +37,7 @@ export interface GenerateApplicationResult {
 
 /** 发送消息 */
 export const sendMessage = async (message: string): Promise<ApiResponse<string>> => {
-  const response = await apiClient.post(`${apiBaseUrl}/api/chat/send`, { message })
+  const response = await apiClient.post(`${apiBaseUrl}/api/chat/send`, { message }, { timeout: 120000 })
   return response.data
 }
 
@@ -68,6 +68,6 @@ export const generateApplication = async (
     certificateText,
     selectedTemplateId,
     selectedRuleId,
-  })
+  }, { timeout: 120000 })
   return response.data
 }
