@@ -21,6 +21,12 @@
   } from '@/api/components/apiDemand'
   import { getUserInfo } from '@/api/components/apiProfile'
   import type { ProofFileItem } from '@/api/components/apiScore'
+  import {
+    analyzeCertificate,
+    generateApplication,
+    type AnalyzeSuggestion,
+    type AnalyzeCertificateResult,
+  } from '@/api/components/apiAIagent'
   
   // ==================== 用户信息 ====================
   const userStore = useUserStore()
@@ -578,7 +584,130 @@ const getConversionRangeText = (): string => {
     }
   }
   
+  // ==================== AI 智能分析 ====================
+  const aiDialogVisible = ref(false)
+  const aiStep = ref<1 | 2 | 3>(1) // 1:上传 2:推荐列表 3:确认申请
+  const aiAnalyzing = ref(false)
+  const aiGenerating = ref(false)
+  const aiSubmitting = ref(false)
+  const aiCertFile = ref<File | null>(null)
+  const aiCertFileInput = ref<HTMLInputElement | null>(null)
+  const aiAnalyzeResult = ref<AnalyzeCertificateResult | null>(null)
+  const aiSelectedSuggestion = ref<AnalyzeSuggestion | null>(null)
+  const aiGenerateResult = ref<{
+    templateName: string; templateType: string; scoreType: number
+    applyScore: number; ruleId: number; remark: string
+  } | null>(null)
+  const aiProofItems = ref<FileTableItem[]>([])
+
+  const openAiDialog = () => {
+    aiStep.value = 1
+    aiCertFile.value = null
+    aiAnalyzeResult.value = null
+    aiSelectedSuggestion.value = null
+    aiGenerateResult.value = null
+    aiProofItems.value = []
+    aiDialogVisible.value = true
+  }
+
+  const handleAiFileChange = (e: Event) => {
+    const input = e.target as HTMLInputElement
+    if (input.files && input.files[0]) {
+      aiCertFile.value = input.files[0]
+    }
+  }
+
+  const handleAiAnalyze = async () => {
+    if (!aiCertFile.value) {
+      ElMessage.warning('请先选择 PDF 证明材料')
+      return
+    }
+    aiAnalyzing.value = true
+    try {
+      const res = await analyzeCertificate(aiCertFile.value)
+      if (res.code === 200) {
+        aiAnalyzeResult.value = res.data
+        aiStep.value = 2
+        if (res.data.suggestions.length === 0) {
+          ElMessage.info('未匹配到合适的加分项，请手动选择模板申请')
+        }
+      } else {
+        ElMessage.error(res.msg || 'AI 分析失败，请稍后重试')
+      }
+    } catch {
+      ElMessage.error('AI 服务暂时不可用，请手动申请')
+    } finally {
+      aiAnalyzing.value = false
+    }
+  }
+
+  const handleAiSelectSuggestion = async (suggestion: AnalyzeSuggestion) => {
+    aiSelectedSuggestion.value = suggestion
+    aiGenerating.value = true
+    try {
+      const res = await generateApplication(
+        aiAnalyzeResult.value!.certificateText,
+        suggestion.templateId,
+        suggestion.ruleId,
+      )
+      if (res.code === 200) {
+        aiGenerateResult.value = res.data
+        aiStep.value = 3
+      } else {
+        ElMessage.error(res.msg || '生成申请数据失败')
+      }
+    } catch {
+      ElMessage.error('AI 服务暂时不可用')
+    } finally {
+      aiGenerating.value = false
+    }
+  }
+
+  const handleAiSubmit = async () => {
+    if (!aiGenerateResult.value || !aiSelectedSuggestion.value) return
+    if (aiProofItems.value.length === 0) {
+      ElMessage.error('请至少上传一个证明材料')
+      return
+    }
+    aiSubmitting.value = true
+    try {
+      const username = userStore.userInfo?.username || ''
+      const studentId = username.includes('@stu.xmu.edu.cn') ? username.split('@')[0] : ''
+      const submitData: SubmitBonusApplicationDto = {
+        studentId,
+        studentName: userStore.studentInfo?.fullName || '',
+        major: userStore.studentInfo?.major || '',
+        enrollmentYear: userStore.studentInfo?.grade || new Date().getFullYear(),
+        templateName: aiGenerateResult.value.templateName,
+        templateType: aiGenerateResult.value.templateType,
+        scoreType: aiGenerateResult.value.scoreType,
+        applyScore: aiGenerateResult.value.applyScore,
+        ruleId: aiGenerateResult.value.ruleId,
+        reviewCount: 1,
+        remark: aiGenerateResult.value.remark,
+        proofItems: aiProofItems.value.map(item => ({
+          proofFileId: item.fileId,
+          proofValue: Number(item.fileValue) || 0,
+          reviewCount: 1,
+          remark: item.remark || '',
+        })),
+      }
+      const response = await submitBonusApplication(submitData)
+      if (response.code === 200) {
+        ElMessage.success('AI 智能申请提交成功！')
+        aiDialogVisible.value = false
+      } else {
+        ElMessage.error(response.message || '提交失败')
+      }
+    } catch (error: any) {
+      ElMessage.error(error.message || '提交失败')
+    } finally {
+      aiSubmitting.value = false
+    }
+  }
+
   // ==================== 生命周期 ====================
+
   onMounted(async () => {
     loadTemplates()
     loadDemandData()
@@ -587,7 +716,18 @@ const getConversionRangeText = (): string => {
   
   <template>
     <div class="min-h-screen flex flex-col gap-5 p-4">
-      <!-- 模板卡片列表 -->
+      <!-- AI 智能分析入口 -->
+      <el-card>
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="font-semibold text-gray-700">AI 智能证书分析</span>
+            <span class="text-sm text-gray-400 ml-2">上传 PDF 证明材料，AI 自动识别并推荐最合适的加分项</span>
+          </div>
+          <el-button type="primary" @click="openAiDialog">
+            AI 智能分析
+          </el-button>
+        </div>
+      </el-card>
       <el-card class="min-h-[100vh]">
         <el-tabs v-model="activeTab">
           <el-tab-pane
@@ -903,6 +1043,136 @@ const getConversionRangeText = (): string => {
           <div class="flex justify-end gap-2">
             <el-button @click="demandDialogVisible = false">取消</el-button>
             <el-button type="primary" @click="handleSaveDemand" :loading="savingDemand">保存</el-button>
+          </div>
+        </template>
+      </el-dialog>
+
+      <!-- ========== AI 智能分析对话框 ========== -->
+      <el-dialog
+        v-model="aiDialogVisible"
+        title="AI 智能证书分析"
+        width="700px"
+        :close-on-click-modal="false"
+      >
+        <!-- Step 1: 上传文件 -->
+        <div v-if="aiStep === 1">
+          <el-alert type="info" :closable="false" class="mb-4">
+            <template #title>上传 PDF 格式的证明材料，AI 将自动识别内容并推荐对应加分项</template>
+          </el-alert>
+          <div class="flex flex-col items-center gap-4 py-6">
+            <div
+              class="w-full border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-400 transition-colors"
+              @click="aiCertFileInput?.click()"
+            >
+              <div class="text-4xl text-gray-300 mb-2">📄</div>
+              <div v-if="aiCertFile" class="text-blue-600 font-medium">{{ aiCertFile.name }}</div>
+              <div v-else class="text-gray-400">点击选择 PDF 文件（最大 10MB）</div>
+            </div>
+            <input
+              ref="aiCertFileInput"
+              type="file"
+              accept=".pdf"
+              class="hidden"
+              @change="handleAiFileChange"
+            />
+            <el-button
+              type="primary"
+              :loading="aiAnalyzing"
+              :disabled="!aiCertFile"
+              @click="handleAiAnalyze"
+              size="large"
+            >
+              {{ aiAnalyzing ? 'AI 正在分析...' : '开始 AI 分析' }}
+            </el-button>
+          </div>
+        </div>
+
+        <!-- Step 2: 推荐列表 -->
+        <div v-else-if="aiStep === 2">
+          <div class="mb-4 text-sm text-gray-500">AI 基于证书内容，推荐以下可申请的加分项：</div>
+          <div v-if="aiAnalyzeResult?.suggestions.length === 0" class="text-center py-8 text-gray-400">
+            <div class="text-2xl mb-2">🤔</div>
+            <div>未找到匹配的加分项，建议手动选择模板申请</div>
+          </div>
+          <div v-else class="space-y-3">
+            <div
+              v-for="s in aiAnalyzeResult?.suggestions"
+              :key="s.templateId + '-' + s.ruleId"
+              class="border rounded-lg p-4 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all"
+              :class="{ 'border-blue-500 bg-blue-50': aiSelectedSuggestion?.ruleId === s.ruleId && aiSelectedSuggestion?.templateId === s.templateId }"
+              @click="handleAiSelectSuggestion(s)"
+            >
+              <div class="flex justify-between items-start">
+                <div>
+                  <span class="font-semibold">{{ s.templateName }}</span>
+                  <el-tag size="small" type="success" class="ml-2">{{ s.ruleName }}</el-tag>
+                </div>
+                <div class="text-xl font-bold text-green-600">{{ s.estimatedScore }} 分</div>
+              </div>
+              <div class="text-sm text-gray-500 mt-2">{{ s.reason }}</div>
+              <div v-if="aiGenerating && aiSelectedSuggestion?.ruleId === s.ruleId" class="mt-2 text-blue-500 text-sm">
+                正在生成申请数据...
+              </div>
+            </div>
+          </div>
+          <div class="mt-4">
+            <el-button @click="aiStep = 1; aiCertFile = null">重新上传</el-button>
+          </div>
+        </div>
+
+        <!-- Step 3: 确认并提交 -->
+        <div v-else-if="aiStep === 3 && aiGenerateResult">
+          <el-alert type="success" :closable="false" class="mb-4">
+            <template #title>AI 已生成申请数据，请上传证明材料后提交</template>
+          </el-alert>
+          <el-form label-width="100px" class="mb-4">
+            <el-form-item label="加分项目">
+              <span class="font-semibold">{{ aiGenerateResult.templateName }}</span>
+              <el-tag size="small" class="ml-2">{{ aiSelectedSuggestion?.ruleName }}</el-tag>
+            </el-form-item>
+            <el-form-item label="预计得分">
+              <span class="text-2xl font-bold text-green-600">{{ aiGenerateResult.applyScore }} 分</span>
+            </el-form-item>
+            <el-form-item label="AI 备注">
+              <el-input v-model="aiGenerateResult.remark" type="textarea" :rows="3" />
+            </el-form-item>
+            <el-form-item label="证明材料" required>
+              <div class="w-full">
+                <FileTable
+                  v-model="aiProofItems"
+                  :show-file-value="true"
+                  file-value-label="证明分数"
+                  file-value-type="number"
+                  :file-value-min="0"
+                  :file-value-max="999.99"
+                  :file-value-precision="2"
+                  file-value-placeholder="请输入该证明对应的分数"
+                  file-category="SCORE_PROOF"
+                  file-purpose="加分申请证明材料"
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  :limit="40"
+                  :show-upload-button="true"
+                  :show-preview-button="true"
+                  :show-download-button="true"
+                  :show-delete-button="true"
+                />
+              </div>
+            </el-form-item>
+          </el-form>
+        </div>
+
+        <template #footer>
+          <div class="flex justify-between">
+            <el-button @click="aiDialogVisible = false">取消</el-button>
+            <el-button
+              v-if="aiStep === 3"
+              type="primary"
+              :loading="aiSubmitting"
+              :disabled="aiProofItems.length === 0"
+              @click="handleAiSubmit"
+            >
+              提交申请
+            </el-button>
           </div>
         </template>
       </el-dialog>
