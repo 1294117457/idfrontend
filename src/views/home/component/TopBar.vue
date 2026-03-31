@@ -47,7 +47,7 @@
                   class="drop-shadow-md transition-all duration-300"
                   :style="{ fontSize: userNameFontSize }"
                 >
-                  {{ userStore.userInfo?.nickname || '游客' }}
+                  {{ userStore.userInfo?.fullName || userStore.userInfo?.username }}
                 </span>
               </div>
               <template #dropdown>

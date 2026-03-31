@@ -14,6 +14,7 @@ export interface ApiResponse<T = any> {
 export interface UserBasicInfo {
   userId: number
   username: string  // 即学校邮箱
+  fullName?: string
   phone?: string
   avatar?: string
   role: string
