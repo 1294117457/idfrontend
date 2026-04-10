@@ -149,7 +149,34 @@
                   />
                 </div>
                 <div class="max-w-[75%] px-4 py-2 rounded-2xl text-sm bg-gray-100 text-gray-800 rounded-bl-md">
-                  <div class="whitespace-pre-wrap">{{ msg.content }}</div>
+                  <div class="markdown-body" v-html="renderMarkdown(msg.content)"></div>
+                </div>
+              </div>
+              <!-- interrupt 补充信息气泡 -->
+              <div v-else-if="msg.role === 'interrupt'" class="flex items-start gap-2 w-full">
+                <div class="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 mt-1">
+                  <img src="@/assets/images/avatar.png" alt="抽成龟" class="w-full h-full object-cover" />
+                </div>
+                <div class="flex-1 max-w-[85%]">
+                  <div class="px-4 py-2 rounded-2xl text-sm bg-amber-50 text-amber-800 rounded-bl-md border border-amber-200">
+                    <div class="markdown-body" v-html="renderMarkdown(msg.content)"></div>
+                  </div>
+                  <div v-if="isInterrupted" class="mt-2 flex gap-2">
+                    <input
+                      v-model="supplementInput"
+                      @keyup.enter="handleResume"
+                      type="text"
+                      placeholder="请补充信息..."
+                      class="flex-1 px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                    <button
+                      @click="handleResume"
+                      :disabled="!supplementInput.trim()"
+                      class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-300 text-white text-sm rounded-lg transition-colors"
+                    >
+                      提交
+                    </button>
+                  </div>
                 </div>
               </div>
               <!-- 用户消息 -->
@@ -182,9 +209,24 @@
             </div>
           </div>
   
+          <!-- 文件预览 -->
+          <div v-if="pendingFile" class="px-3 pt-2 flex items-center gap-2 text-xs text-gray-500">
+            <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+            </svg>
+            <span class="truncate max-w-[200px]">{{ pendingFile.name }}</span>
+            <button @click="pendingFile = null" class="text-red-400 hover:text-red-600 ml-auto">&times;</button>
+          </div>
+
           <!-- 输入区域 -->
           <div class="border-t p-3">
             <div class="flex items-center gap-2">
+              <label class="w-8 h-8 flex items-center justify-center cursor-pointer text-gray-400 hover:text-blue-500 transition-colors" title="上传文件">
+                <input ref="fileInput" type="file" accept=".pdf,.docx,.doc,.xlsx,.xls,.txt,.md" class="hidden" @change="onFileSelected" />
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+              </label>
               <input
                 v-model="inputMessage"
                 @keyup.enter="handleSend"
@@ -195,7 +237,7 @@
               />
               <button
                 @click="handleSend"
-                :disabled="isLoading || !inputMessage.trim()"
+                :disabled="isLoading || (!inputMessage.trim() && !pendingFile)"
                 class="w-10 h-10 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 rounded-full flex items-center justify-center transition-colors"
               >
                 <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -216,12 +258,22 @@
   
   <script setup lang="ts">
   import { ref, reactive, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
-  import { sendMessageStream, clearConversation } from '@/api/components/apiAIagent'
+  import { agentStreamChat, agentResumeStream } from '@/api/components/apiAIagent'
+  import type { AgentStreamCallbacks } from '@/api/components/apiAIagent'
   import { ElMessage } from 'element-plus'
+  import { marked } from 'marked'
+  import DOMPurify from 'dompurify'
+
+  marked.setOptions({ breaks: true, gfm: true })
+
+  function renderMarkdown(text: string): string {
+    if (!text) return ''
+    const html = marked.parse(text) as string
+    return DOMPurify.sanitize(html)
+  }
   
-  // 定义消息类型
   interface Message {
-    role: 'user' | 'assistant'
+    role: 'user' | 'assistant' | 'interrupt'
     content: string
   }
   
@@ -380,12 +432,17 @@
   // ==================== 原有状态 ====================
   const isOpen = ref(false)
   const isLoading = ref(false)
-  const isStreaming = ref(false)   // 已收到第一个 token（控制加载动画消失时机）
+  const isStreaming = ref(false)
+  const isInterrupted = ref(false)
   const hasNewMessage = ref(false)
   const inputMessage = ref('')
+  const supplementInput = ref('')
+  const pendingFile = ref<File | null>(null)
+  const currentSessionId = ref('sess_' + Date.now())
   const messages = ref<Message[]>([])
   const messageContainer = ref<HTMLElement | null>(null)
-  let streamController: AbortController | null = null   // 用于取消进行中的流
+  const fileInput = ref<HTMLInputElement | null>(null)
+  let streamController: AbortController | null = null
   
   // 头像加载错误状态
   const avatarError = ref(false)
@@ -417,57 +474,93 @@
     })
   }
   
-  // 发送消息（流式）
+  const onFileSelected = (e: Event) => {
+    const target = e.target as HTMLInputElement
+    if (target.files?.[0]) {
+      pendingFile.value = target.files[0]
+      target.value = ''
+    }
+  }
+
+  const buildCallbacks = (aiMsgIndex: number): AgentStreamCallbacks => ({
+    onSession(sid) { currentSessionId.value = sid },
+    onToken(content) {
+      isStreaming.value = true
+      messages.value[aiMsgIndex].content += content
+      scrollToBottom()
+    },
+    onInterrupt(question) {
+      isInterrupted.value = true
+      messages.value.push({ role: 'interrupt', content: question })
+      scrollToBottom()
+    },
+    onResult(_result) { /* final result, token stream already covers the reply */ },
+    onError(msg) {
+      if (!messages.value[aiMsgIndex].content) {
+        messages.value[aiMsgIndex].content = '抱歉，遇到了一些问题，请稍后再试。'
+      }
+      ElMessage.error(msg || '发送失败')
+    },
+    onDone() {
+      isLoading.value = false
+      isStreaming.value = false
+      streamController = null
+      scrollToBottom()
+    },
+  })
+
   const handleSend = () => {
     const message = inputMessage.value.trim()
-    if (!message || isLoading.value) return
+    const file = pendingFile.value
+    if ((!message && !file) || isLoading.value) return
 
-    // 添加用户消息
-    messages.value.push({ role: 'user', content: message })
+    const displayText = file ? (message ? `${message}\n📎 ${file.name}` : `📎 ${file.name}`) : message
+    messages.value.push({ role: 'user', content: displayText })
     inputMessage.value = ''
+    pendingFile.value = null
+    isInterrupted.value = false
     scrollToBottom()
 
-    // 预先推入空的 AI 消息占位，流式填充内容
     messages.value.push({ role: 'assistant', content: '' })
     const aiMsgIndex = messages.value.length - 1
-
     isLoading.value = true
     isStreaming.value = false
 
-    streamController = sendMessageStream(
-      message,
-      (token) => {
-        isStreaming.value = true
-        messages.value[aiMsgIndex].content += token
-        scrollToBottom()
-      },
-      () => {
-        isLoading.value = false
-        isStreaming.value = false
-        streamController = null
-        scrollToBottom()
-      },
-      (err) => {
-        if (!messages.value[aiMsgIndex].content) {
-          messages.value[aiMsgIndex].content = '抱歉，遇到了一些问题，请稍后再试。'
-        }
-        isLoading.value = false
-        isStreaming.value = false
-        streamController = null
-        ElMessage.error(err || '发送失败')
-      },
+    streamController = agentStreamChat(
+      message, currentSessionId.value, file ?? undefined, buildCallbacks(aiMsgIndex),
     )
   }
-  
-  // 清除对话历史
-  const handleClearHistory = async () => {
-    try {
-      await clearConversation()
-      messages.value = []
-      ElMessage.success('已开始新对话')
-    } catch (error) {
-      ElMessage.error('清除失败')
-    }
+
+  const handleResume = () => {
+    const supplement = supplementInput.value.trim()
+    if (!supplement || isLoading.value) return
+
+    messages.value.push({ role: 'user', content: supplement })
+    supplementInput.value = ''
+    isInterrupted.value = false
+    scrollToBottom()
+
+    messages.value.push({ role: 'assistant', content: '' })
+    const aiMsgIndex = messages.value.length - 1
+    isLoading.value = true
+    isStreaming.value = false
+
+    streamController = agentResumeStream(
+      currentSessionId.value, supplement, buildCallbacks(aiMsgIndex),
+    )
+  }
+
+  const handleClearHistory = () => {
+    streamController?.abort()
+    streamController = null
+    messages.value = []
+    isLoading.value = false
+    isStreaming.value = false
+    isInterrupted.value = false
+    supplementInput.value = ''
+    pendingFile.value = null
+    currentSessionId.value = 'sess_' + Date.now()
+    ElMessage.success('已开始新对话')
   }
   
   // 监听消息变化
@@ -532,4 +625,25 @@
     cursor: grabbing !important;
     user-select: none;
   }
+  </style>
+
+  <style>
+  .markdown-body { font-size: 0.875rem; line-height: 1.6; word-break: break-word; }
+  .markdown-body p { margin: 0.25em 0; }
+  .markdown-body ul, .markdown-body ol { padding-left: 1.5em; margin: 0.4em 0; }
+  .markdown-body li { margin: 0.2em 0; }
+  .markdown-body strong { font-weight: 600; }
+  .markdown-body blockquote { border-left: 3px solid #d1d5db; padding-left: 0.75em; margin: 0.5em 0; color: #6b7280; }
+  .markdown-body code { background: #f3f4f6; padding: 0.125em 0.375em; border-radius: 0.25em; font-size: 0.8em; }
+  .markdown-body pre { background: #1f2937; color: #e5e7eb; padding: 0.75em 1em; border-radius: 0.5em; overflow-x: auto; margin: 0.5em 0; }
+  .markdown-body pre code { background: none; padding: 0; color: inherit; }
+  .markdown-body table { border-collapse: collapse; width: 100%; margin: 0.5em 0; }
+  .markdown-body th, .markdown-body td { border: 1px solid #d1d5db; padding: 0.375em 0.75em; text-align: left; }
+  .markdown-body th { background: #f9fafb; font-weight: 600; }
+  .markdown-body h1, .markdown-body h2, .markdown-body h3 { font-weight: 600; margin: 0.5em 0 0.25em; }
+  .markdown-body h1 { font-size: 1.25em; }
+  .markdown-body h2 { font-size: 1.125em; }
+  .markdown-body h3 { font-size: 1em; }
+  .markdown-body hr { border: none; border-top: 1px solid #e5e7eb; margin: 0.75em 0; }
+  .markdown-body a { color: #3b82f6; text-decoration: underline; }
   </style>
