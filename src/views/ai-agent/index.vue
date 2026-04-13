@@ -494,7 +494,12 @@
       messages.value.push({ role: 'interrupt', content: question })
       scrollToBottom()
     },
-    onResult(_result) { /* final result, token stream already covers the reply */ },
+    onResult(result) {
+      if (result.reply && !messages.value[aiMsgIndex].content) {
+        messages.value[aiMsgIndex].content = result.reply
+        scrollToBottom()
+      }
+    },
     onError(msg) {
       if (!messages.value[aiMsgIndex].content) {
         messages.value[aiMsgIndex].content = '抱歉，遇到了一些问题，请稍后再试。'
