@@ -140,7 +140,7 @@
               :class="['flex', msg.role === 'user' ? 'justify-end' : 'justify-start']"
             >
               <!-- AI消息带头像 -->
-              <div v-if="msg.role === 'assistant'" class="flex items-start gap-2">
+              <div v-if="msg.role === 'assistant' && msg.content" class="flex items-start gap-2">
                 <div class="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 mt-1">
                   <img
                     src="@/assets/images/avatar.png"
