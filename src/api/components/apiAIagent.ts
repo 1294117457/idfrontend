@@ -2,14 +2,14 @@ import apiClient from '@/utils/http'
 
 const apiBaseUrl = import.meta.env.VITE_BASE_API
 
-/** 通用响应 */
+/** ???? */
 export interface ApiResponse<T = any> {
   code: number
   msg: string
   data: T
 }
 
-/** AI 分析推荐项 */
+/** AI ????? */
 export interface AnalyzeSuggestion {
   templateId: number
   templateName: string
@@ -19,13 +19,13 @@ export interface AnalyzeSuggestion {
   reason: string
 }
 
-/** 证书分析结果 */
+/** ?????? */
 export interface AnalyzeCertificateResult {
   certificateText: string
   suggestions: AnalyzeSuggestion[]
 }
 
-/** 生成申请预填结果 */
+/** ???????? */
 export interface GenerateApplicationResult {
   templateName: string
   templateType: string
@@ -35,18 +35,18 @@ export interface GenerateApplicationResult {
   remark: string
 }
 
-/** 发送消息 */
+/** ???? */
 export const sendMessage = async (message: string): Promise<ApiResponse<string>> => {
   const response = await apiClient.post(`${apiBaseUrl}/api/chat/send`, { message }, { timeout: 120000 })
   return response.data
 }
 
 /**
- * 流式发送消息（SSE）
- * - onToken: 每收到一个 token 回调
- * - onDone:  流结束回调
- * - onError: 出错回调
- * - 返回 AbortController，调用 .abort() 可中断请求
+ * ???????SSE?
+ * - onToken: ????? token ??
+ * - onDone:  ?????
+ * - onError: ????
+ * - ?? AbortController??? .abort() ?????
  */
 export const sendMessageStream = (
   message: string,
@@ -70,7 +70,7 @@ export const sendMessageStream = (
       })
 
       if (!response.ok || !response.body) {
-        onError('网络异常')
+        onError('????')
         return
       }
 
@@ -88,19 +88,19 @@ export const sendMessageStream = (
 
         for (const line of lines) {
           if (!line.startsWith('data:')) continue
-          const data = line.slice(5).trim()   // 兼容 "data:x" 和 "data: x"
+          const data = line.slice(5).trim()
           if (data === '[DONE]') { onDone(); return }
           try {
             const parsed = JSON.parse(data)
             if (parsed.token) onToken(parsed.token)
             if (parsed.error) { onError(parsed.error); return }
-          } catch { /* 忽略非 JSON 行 */ }
+          } catch { /* ??? JSON ? */ }
         }
       }
       onDone()
     } catch (err: unknown) {
-      if ((err as Error)?.name === 'AbortError') return  // 用户主动取消，不报错
-      onError('网络异常，请检查连接')
+      if ((err as Error)?.name === 'AbortError') return
+      onError('??????????')
     }
   }
 
@@ -108,13 +108,13 @@ export const sendMessageStream = (
   return controller
 }
 
-/** 清除对话历史 */
+/** ?????? */
 export const clearConversation = async (): Promise<ApiResponse<void>> => {
   const response = await apiClient.post(`${apiBaseUrl}/api/chat/clear`)
   return response.data
 }
 
-/** 上传 PDF 证书，获取加分项推荐 */
+/** ?? PDF ?????????? */
 export const analyzeCertificate = async (file: File): Promise<ApiResponse<AnalyzeCertificateResult>> => {
   const formData = new FormData()
   formData.append('file', file)
@@ -125,7 +125,7 @@ export const analyzeCertificate = async (file: File): Promise<ApiResponse<Analyz
   return response.data
 }
 
-/** 根据选定模板和规则，生成申请表单预填数据 */
+/** ???????????????????? */
 export const generateApplication = async (
   certificateText: string,
   selectedTemplateId: number,
@@ -139,17 +139,17 @@ export const generateApplication = async (
   return response.data
 }
 
-// ────────────────────────────────────────────────────────────
-// 新 Agent（LangGraph）接口
-// ────────────────────────────────────────────────────────────
+// ????????????????????????????????????????????????????????????
+// Agent?LangGraph???
+// ????????????????????????????????????????????????????????????
 
-/** SSE 事件类型 */
+/** SSE ???? */
 export interface AgentSSEEvent {
   type: 'token' | 'interrupt' | 'result' | 'error' | 'session'
   data: any
 }
 
-/** Agent 返回结果 */
+/** Agent ???? */
 export interface AgentResult {
   interrupted?: boolean
   question?: string
@@ -160,20 +160,20 @@ export interface AgentResult {
   sessionId?: string
 }
 
-/** Agent 流式回调集 */
+/** Agent ????? */
 export interface AgentStreamCallbacks {
   onToken?: (content: string) => void
-  onInterrupt?: (question: string) => void
+  onInterrupt?: (question: string, extra?: { suggestions?: any[]; requireFiles?: boolean }) => void
   onResult?: (result: AgentResult) => void
   onSession?: (sessionId: string) => void
   onError?: (message: string) => void
   onDone?: () => void
 }
 
-/** 解析 SSE 流的通用逻辑 */
+/** ?? SSE ?????? */
 async function consumeSSE(response: Response, callbacks?: AgentStreamCallbacks) {
   if (!response.ok || !response.body) {
-    callbacks?.onError?.(`请求失败: ${response.status}`)
+    callbacks?.onError?.(`????: ${response.status}`)
     callbacks?.onDone?.()
     return
   }
@@ -194,11 +194,11 @@ async function consumeSSE(response: Response, callbacks?: AgentStreamCallbacks) 
       try {
         const event: AgentSSEEvent = JSON.parse(payload)
         switch (event.type) {
-          case 'token':    callbacks?.onToken?.(event.data.content); break
-          case 'interrupt': callbacks?.onInterrupt?.(event.data.question); break
-          case 'result':   callbacks?.onResult?.(event.data); break
-          case 'session':  callbacks?.onSession?.(event.data.sessionId); break
-          case 'error':    callbacks?.onError?.(event.data.message); break
+          case 'token':     callbacks?.onToken?.(event.data.content); break
+          case 'interrupt': callbacks?.onInterrupt?.(event.data.question, event.data); break
+          case 'result':    callbacks?.onResult?.(event.data); break
+          case 'session':   callbacks?.onSession?.(event.data.sessionId); break
+          case 'error':     callbacks?.onError?.(event.data.message); break
         }
       } catch { /* skip malformed */ }
     }
@@ -207,8 +207,8 @@ async function consumeSSE(response: Response, callbacks?: AgentStreamCallbacks) 
 }
 
 /**
- * Agent 流式对话（SSE）
- * 返回 AbortController 可中断
+ * Agent ?????SSE?
+ * ?? AbortController ???
  */
 export function agentStreamChat(
   message: string, sessionId: string, file?: File, callbacks?: AgentStreamCallbacks,
@@ -234,7 +234,7 @@ export function agentStreamChat(
   return controller
 }
 
-/** Agent interrupt 恢复（流式 SSE） */
+/** Agent interrupt ????? SSE? */
 export function agentResumeStream(
   sessionId: string, supplement: string, callbacks?: AgentStreamCallbacks,
 ): AbortController {

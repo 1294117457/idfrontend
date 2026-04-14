@@ -209,35 +209,20 @@
             </div>
           </div>
   
-          <!-- 文件预览 -->
-          <div v-if="pendingFile" class="px-3 pt-2 flex items-center gap-2 text-xs text-gray-500">
-            <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-            </svg>
-            <span class="truncate max-w-[200px]">{{ pendingFile.name }}</span>
-            <button @click="pendingFile = null" class="text-red-400 hover:text-red-600 ml-auto">&times;</button>
-          </div>
-
           <!-- 输入区域 -->
           <div class="border-t p-3">
             <div class="flex items-center gap-2">
-              <label class="w-8 h-8 flex items-center justify-center cursor-pointer text-gray-400 hover:text-blue-500 transition-colors" title="上传文件">
-                <input ref="fileInput" type="file" accept=".pdf,.docx,.doc,.xlsx,.xls,.txt,.md" class="hidden" @change="onFileSelected" />
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                </svg>
-              </label>
               <input
                 v-model="inputMessage"
                 @keyup.enter="handleSend"
                 type="text"
-                placeholder="输入消息..."
+                placeholder="输入消息，咨询加分政策..."
                 class="flex-1 px-4 py-2 bg-gray-100 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 :disabled="isLoading"
               />
               <button
                 @click="handleSend"
-                :disabled="isLoading || (!inputMessage.trim() && !pendingFile)"
+                :disabled="isLoading || !inputMessage.trim()"
                 class="w-10 h-10 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 rounded-full flex items-center justify-center transition-colors"
               >
                 <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -437,11 +422,9 @@
   const hasNewMessage = ref(false)
   const inputMessage = ref('')
   const supplementInput = ref('')
-  const pendingFile = ref<File | null>(null)
   const currentSessionId = ref('sess_' + Date.now())
   const messages = ref<Message[]>([])
   const messageContainer = ref<HTMLElement | null>(null)
-  const fileInput = ref<HTMLInputElement | null>(null)
   let streamController: AbortController | null = null
   
   // 头像加载错误状态
@@ -474,14 +457,6 @@
     })
   }
   
-  const onFileSelected = (e: Event) => {
-    const target = e.target as HTMLInputElement
-    if (target.files?.[0]) {
-      pendingFile.value = target.files[0]
-      target.value = ''
-    }
-  }
-
   const buildCallbacks = (aiMsgIndex: number): AgentStreamCallbacks => ({
     onSession(sid) { currentSessionId.value = sid },
     onToken(content) {
@@ -516,13 +491,10 @@
 
   const handleSend = () => {
     const message = inputMessage.value.trim()
-    const file = pendingFile.value
-    if ((!message && !file) || isLoading.value) return
+    if (!message || isLoading.value) return
 
-    const displayText = file ? (message ? `${message}\n📎 ${file.name}` : `📎 ${file.name}`) : message
-    messages.value.push({ role: 'user', content: displayText })
+    messages.value.push({ role: 'user', content: message })
     inputMessage.value = ''
-    pendingFile.value = null
     isInterrupted.value = false
     scrollToBottom()
 
@@ -532,7 +504,7 @@
     isStreaming.value = false
 
     streamController = agentStreamChat(
-      message, currentSessionId.value, file ?? undefined, buildCallbacks(aiMsgIndex),
+      message, currentSessionId.value, undefined, buildCallbacks(aiMsgIndex),
     )
   }
 
@@ -563,7 +535,6 @@
     isStreaming.value = false
     isInterrupted.value = false
     supplementInput.value = ''
-    pendingFile.value = null
     currentSessionId.value = 'sess_' + Date.now()
     ElMessage.success('已开始新对话')
   }

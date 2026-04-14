@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { ref, reactive, onMounted, computed } from 'vue'
+  import { ref, reactive, onMounted, computed, nextTick } from 'vue'
   import { ElMessage } from 'element-plus'
   import { Delete } from '@element-plus/icons-vue'
   import {
@@ -21,12 +21,9 @@
   } from '@/api/components/apiDemand'
   import { getUserInfo } from '@/api/components/apiProfile'
   import type { ProofFileItem } from '@/api/components/apiScore'
-  import {
-    analyzeCertificate,
-    generateApplication,
-    type AnalyzeSuggestion,
-    type AnalyzeCertificateResult,
-  } from '@/api/components/apiAIagent'
+  import { agentStreamChat, agentResumeStream, type AgentStreamCallbacks } from '@/api/components/apiAIagent'
+  import { marked } from 'marked'
+  import DOMPurify from 'dompurify'
   
   // ==================== 用户信息 ====================
   const userStore = useUserStore()
@@ -514,7 +511,7 @@ const getConversionRangeText = (): string => {
         }
         if (hasDemandData.value) {
           try {
-            const saved: DemandApplicationItem[] = JSON.parse(info.demandValue)
+            const saved: DemandApplicationItem[] = JSON.parse(info.demandValue ?? '[]')
             saved.forEach(app => {
               demandForm.value[app.templateId] = app
             })
@@ -584,126 +581,148 @@ const getConversionRangeText = (): string => {
     }
   }
   
-  // ==================== AI 智能分析 ====================
-  const aiDialogVisible = ref(false)
-  const aiStep = ref<1 | 2 | 3>(1) // 1:上传 2:推荐列表 3:确认申请
-  const aiAnalyzing = ref(false)
-  const aiGenerating = ref(false)
-  const aiSubmitting = ref(false)
-  const aiCertFile = ref<File | null>(null)
-  const aiCertFileInput = ref<HTMLInputElement | null>(null)
-  const aiAnalyzeResult = ref<AnalyzeCertificateResult | null>(null)
-  const aiSelectedSuggestion = ref<AnalyzeSuggestion | null>(null)
-  const aiGenerateResult = ref<{
-    templateName: string; templateType: string; scoreType: number
-    applyScore: number; ruleId: number; remark: string
-  } | null>(null)
+  // ==================== AI 智能申请（对话式） ====================
+  interface AiMessage { role: 'user' | 'assistant'; content: string }
+
+  const aiChatVisible = ref(false)
+  const aiMessages = ref<AiMessage[]>([])
+  const aiLoading = ref(false)
+  const aiStreaming = ref(false)
+  const aiInterrupted = ref(false)
+  const aiInterruptSuggestions = ref<any[]>([])
+  const aiSelectedIdx = ref(0)
+  const aiSessionId = ref('ai_score_' + Date.now())
+  const aiInput = ref('')
+  const aiSupplement = ref('')
+  const aiPendingFile = ref<File | null>(null)
   const aiProofItems = ref<FileTableItem[]>([])
+  const aiMessageContainer = ref<HTMLElement | null>(null)
 
-  const openAiDialog = () => {
-    aiStep.value = 1
-    aiCertFile.value = null
-    aiAnalyzeResult.value = null
-    aiSelectedSuggestion.value = null
-    aiGenerateResult.value = null
-    aiProofItems.value = []
-    aiDialogVisible.value = true
+  let aiController: AbortController | null = null
+
+  const renderAiMarkdown = (text: string) =>
+    DOMPurify.sanitize(marked.parse(text, { async: false }) as string)
+
+  const scrollAiToBottom = () => {
+    nextTick(() => {
+      if (aiMessageContainer.value)
+        aiMessageContainer.value.scrollTop = aiMessageContainer.value.scrollHeight
+    })
   }
 
-  const handleAiFileChange = (e: Event) => {
+  const onAiFileChange = (e: Event) => {
     const input = e.target as HTMLInputElement
-    if (input.files && input.files[0]) {
-      aiCertFile.value = input.files[0]
-    }
+    if (input.files?.[0]) { aiPendingFile.value = input.files[0]; input.value = '' }
   }
 
-  const handleAiAnalyze = async () => {
-    if (!aiCertFile.value) {
-      ElMessage.warning('请先选择 PDF 证明材料')
+  const buildAiCallbacks = (aiMsgIdx: number): AgentStreamCallbacks => ({
+    onToken(content) {
+      aiStreaming.value = true
+      aiMessages.value[aiMsgIdx].content += content
+      scrollAiToBottom()
+    },
+    onInterrupt(question, extra) {
+      aiLoading.value = false
+      aiStreaming.value = false
+      aiInterrupted.value = true
+      aiInterruptSuggestions.value = extra?.suggestions ?? []
+      aiMessages.value[aiMsgIdx].content = question
+      scrollAiToBottom()
+    },
+    onResult(result) {
+      if (result.reply && !aiMessages.value[aiMsgIdx].content) {
+        aiMessages.value[aiMsgIdx].content = result.reply
+        scrollAiToBottom()
+      }
+    },
+    onError(msg) {
+      if (!aiMessages.value[aiMsgIdx].content)
+        aiMessages.value[aiMsgIdx].content = '抱歉，AI 出现异常，请稍后重试。'
+      ElMessage.error(msg || '发送失败')
+    },
+    onDone() {
+      aiLoading.value = false
+      aiStreaming.value = false
+      aiController = null
+    },
+  })
+
+  const handleAiSend = () => {
+    const msg = aiInput.value.trim()
+    const file = aiPendingFile.value
+    if ((!msg && !file) || aiLoading.value) return
+
+    aiMessages.value.push({ role: 'user', content: file ? `${msg}\n📎 ${file.name}` : msg })
+    aiInput.value = ''
+    aiPendingFile.value = null
+    aiInterrupted.value = false
+    aiInterruptSuggestions.value = []
+    scrollAiToBottom()
+
+    aiMessages.value.push({ role: 'assistant', content: '' })
+    const idx = aiMessages.value.length - 1
+    aiLoading.value = true
+    aiStreaming.value = false
+
+    aiController = agentStreamChat(msg, aiSessionId.value, file ?? undefined, buildAiCallbacks(idx))
+  }
+
+  const handleAiResume = () => {
+    const text = aiSupplement.value.trim()
+    if (!text) return
+
+    aiMessages.value.push({ role: 'user', content: text })
+    aiSupplement.value = ''
+    aiInterrupted.value = false
+    aiInterruptSuggestions.value = []
+    scrollAiToBottom()
+
+    aiMessages.value.push({ role: 'assistant', content: '' })
+    const idx = aiMessages.value.length - 1
+    aiLoading.value = true
+    aiStreaming.value = false
+
+    aiController = agentResumeStream(aiSessionId.value, text, buildAiCallbacks(idx))
+  }
+
+  const handleAiConfirm = () => {
+    const selected = aiInterruptSuggestions.value[aiSelectedIdx.value]
+    if (!selected || aiProofItems.value.length === 0) {
+      ElMessage.warning('请选择加分项并上传至少一个证明材料')
       return
     }
-    aiAnalyzing.value = true
-    try {
-      const res = await analyzeCertificate(aiCertFile.value)
-      if (res.code === 200) {
-        aiAnalyzeResult.value = res.data
-        aiStep.value = 2
-        if (res.data.suggestions.length === 0) {
-          ElMessage.info('未匹配到合适的加分项，请手动选择模板申请')
-        }
-      } else {
-        ElMessage.error(res.msg || 'AI 分析失败，请稍后重试')
-      }
-    } catch {
-      ElMessage.error('AI 服务暂时不可用，请手动申请')
-    } finally {
-      aiAnalyzing.value = false
-    }
+    const proofFileIds = aiProofItems.value.map(p => p.fileId)
+    const proofValues  = aiProofItems.value.map(p => Number(p.fileValue) || 0)
+
+    const confirmJson = JSON.stringify({ confirm: true, proofFileIds, proofValues })
+
+    aiMessages.value.push({ role: 'user', content: `确认提交 ${selected.templateName}` })
+    aiInterrupted.value = false
+    aiInterruptSuggestions.value = []
+    aiProofItems.value = []
+    scrollAiToBottom()
+
+    aiMessages.value.push({ role: 'assistant', content: '' })
+    const idx = aiMessages.value.length - 1
+    aiLoading.value = true
+    aiStreaming.value = false
+
+    aiController = agentResumeStream(aiSessionId.value, confirmJson, buildAiCallbacks(idx))
   }
 
-  const handleAiSelectSuggestion = async (suggestion: AnalyzeSuggestion) => {
-    aiSelectedSuggestion.value = suggestion
-    aiGenerating.value = true
-    try {
-      const res = await generateApplication(
-        aiAnalyzeResult.value!.certificateText,
-        suggestion.templateId,
-        suggestion.ruleId,
-      )
-      if (res.code === 200) {
-        aiGenerateResult.value = res.data
-        aiStep.value = 3
-      } else {
-        ElMessage.error(res.msg || '生成申请数据失败')
-      }
-    } catch {
-      ElMessage.error('AI 服务暂时不可用')
-    } finally {
-      aiGenerating.value = false
-    }
-  }
+  const handleAiCancel = () => {
+    aiMessages.value.push({ role: 'user', content: 'cancel' })
+    aiInterrupted.value = false
+    aiInterruptSuggestions.value = []
+    aiProofItems.value = []
+    scrollAiToBottom()
 
-  const handleAiSubmit = async () => {
-    if (!aiGenerateResult.value || !aiSelectedSuggestion.value) return
-    if (aiProofItems.value.length === 0) {
-      ElMessage.error('请至少上传一个证明材料')
-      return
-    }
-    aiSubmitting.value = true
-    try {
-      const username = userStore.userInfo?.username || ''
-      const studentId = username.includes('@stu.xmu.edu.cn') ? username.split('@')[0] : ''
-      const submitData: SubmitBonusApplicationDto = {
-        studentId,
-        studentName: userStore.studentInfo?.fullName || '',
-        major: userStore.studentInfo?.major || '',
-        enrollmentYear: userStore.studentInfo?.grade || new Date().getFullYear(),
-        templateName: aiGenerateResult.value.templateName,
-        templateType: aiGenerateResult.value.templateType,
-        scoreType: aiGenerateResult.value.scoreType,
-        applyScore: aiGenerateResult.value.applyScore,
-        ruleId: aiGenerateResult.value.ruleId,
-        reviewCount: 1,
-        remark: aiGenerateResult.value.remark,
-        proofItems: aiProofItems.value.map(item => ({
-          proofFileId: item.fileId,
-          proofValue: Number(item.fileValue) || 0,
-          reviewCount: 1,
-          remark: item.remark || '',
-        })),
-      }
-      const response = await submitBonusApplication(submitData)
-      if (response.code === 200) {
-        ElMessage.success('AI 智能申请提交成功！')
-        aiDialogVisible.value = false
-      } else {
-        ElMessage.error(response.message || '提交失败')
-      }
-    } catch (error: any) {
-      ElMessage.error(error.message || '提交失败')
-    } finally {
-      aiSubmitting.value = false
-    }
+    aiMessages.value.push({ role: 'assistant', content: '' })
+    const idx = aiMessages.value.length - 1
+    aiLoading.value = true
+    aiStreaming.value = false
+
+    aiController = agentResumeStream(aiSessionId.value, 'cancel', buildAiCallbacks(idx))
   }
 
   // ==================== 生命周期 ====================
@@ -716,18 +735,117 @@ const getConversionRangeText = (): string => {
   
   <template>
     <div class="min-h-screen flex flex-col gap-5 p-4">
-      <!-- AI 智能分析入口 -->
+      <!-- AI 智能申请入口 -->
       <el-card>
         <div class="flex items-center justify-between">
           <div>
-            <span class="font-semibold text-gray-700">AI 智能证书分析</span>
-            <span class="text-sm text-gray-400 ml-2">上传 PDF 证明材料，AI 自动识别并推荐最合适的加分项</span>
+            <span class="font-semibold text-gray-700">AI 智能申请助手</span>
+            <span class="text-sm text-gray-400 ml-2">上传证书或直接描述，AI 自动匹配加分项并协助提交</span>
           </div>
-          <el-button type="primary" @click="openAiDialog">
-            AI 智能分析
-          </el-button>
+          <el-button type="primary" @click="aiChatVisible = true">AI 智能申请</el-button>
         </div>
       </el-card>
+
+      <!-- AI 对话框 -->
+      <el-dialog v-model="aiChatVisible" title="AI 智能申请助手" width="640px" :close-on-click-modal="false" destroy-on-close>
+        <!-- 消息列表 -->
+        <div ref="aiMessageContainer" class="h-80 overflow-y-auto space-y-3 px-1">
+          <div v-if="aiMessages.length === 0" class="text-center text-gray-400 py-8">
+            <div class="text-3xl mb-2">🤖</div>
+            <p class="text-sm">请上传证书文件或描述您的加分情况，我来帮您匹配</p>
+          </div>
+          <div v-for="(msg, i) in aiMessages" :key="i" :class="['flex', msg.role === 'user' ? 'justify-end' : 'justify-start']">
+            <div
+              v-if="msg.role === 'assistant' && msg.content"
+              class="max-w-[85%] px-4 py-2 rounded-2xl text-sm bg-gray-100 text-gray-800 rounded-bl-md"
+            >
+              <div class="markdown-body" v-html="renderAiMarkdown(msg.content)" />
+            </div>
+            <div v-else-if="msg.role === 'user'" class="max-w-[80%] px-4 py-2 rounded-2xl text-sm bg-blue-500 text-white rounded-br-md whitespace-pre-wrap">
+              {{ msg.content }}
+            </div>
+          </div>
+          <div v-if="aiLoading && !aiStreaming" class="flex justify-start">
+            <div class="bg-gray-100 px-4 py-3 rounded-2xl rounded-bl-md">
+              <div class="flex space-x-1">
+                <div v-for="n in 3" :key="n" class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" :style="{ animationDelay: (n - 1) * 0.1 + 's' }" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- HITL：有匹配结果时展示上传区 + 确认 -->
+        <div v-if="aiInterrupted && aiInterruptSuggestions.length > 0" class="mt-4 border-t pt-4 space-y-3">
+          <div class="text-sm font-semibold text-gray-700">匹配结果：</div>
+          <div
+            v-for="(s, idx) in aiInterruptSuggestions"
+            :key="idx"
+            class="border rounded-lg p-3 cursor-pointer hover:border-blue-400 transition-colors"
+            :class="{ 'border-blue-500 bg-blue-50': aiSelectedIdx === idx }"
+            @click="aiSelectedIdx = idx"
+          >
+            <div class="flex justify-between">
+              <span class="font-medium">{{ s.templateName }} / {{ s.ruleName }}</span>
+              <span class="text-green-600 font-bold">{{ s.estimatedScore }} 分</span>
+            </div>
+            <div class="text-xs text-gray-500 mt-1">{{ s.reason }}</div>
+          </div>
+
+          <div class="text-sm font-semibold text-gray-700 mt-2">上传证明材料：</div>
+          <FileTable
+            v-model="aiProofItems"
+            :show-file-value="true"
+            file-value-label="证明分数"
+            file-value-type="number"
+            :file-value-min="0"
+            :file-value-max="999.99"
+            :file-value-precision="2"
+            file-value-placeholder="对应分数"
+            file-category="SCORE_PROOF"
+            file-purpose="加分申请证明材料"
+            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+          />
+
+          <div class="flex gap-2 justify-end">
+            <el-button @click="handleAiCancel">取消申请</el-button>
+            <el-button
+              type="primary"
+              :disabled="aiProofItems.length === 0 || aiLoading"
+              @click="handleAiConfirm"
+            >确认提交</el-button>
+          </div>
+        </div>
+
+        <!-- HITL：信息不完整时的文字补充 -->
+        <div v-else-if="aiInterrupted" class="mt-3">
+          <div class="flex gap-2">
+            <el-input v-model="aiSupplement" placeholder="请补充信息..." @keyup.enter="handleAiResume" />
+            <el-button type="primary" @click="handleAiResume" :disabled="!aiSupplement.trim()">发送</el-button>
+          </div>
+        </div>
+
+        <!-- 普通输入区 -->
+        <div v-else class="mt-3 flex gap-2">
+          <label class="flex items-center justify-center w-9 h-9 rounded-lg border cursor-pointer text-gray-400 hover:text-blue-500 hover:border-blue-400 transition-colors flex-shrink-0" title="上传证书">
+            <input type="file" class="hidden" accept=".pdf,.docx,.doc" @change="onAiFileChange" />
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+            </svg>
+          </label>
+          <el-input
+            v-model="aiInput"
+            placeholder="输入消息或上传证书文件..."
+            @keyup.enter="handleAiSend"
+            :disabled="aiLoading"
+          />
+          <el-button type="primary" @click="handleAiSend" :loading="aiLoading" :disabled="!aiInput.trim() && !aiPendingFile">发送</el-button>
+        </div>
+
+        <div v-if="aiPendingFile" class="mt-2 flex items-center gap-2 text-xs text-gray-500">
+          <span>📎 {{ aiPendingFile.name }}</span>
+          <button @click="aiPendingFile = null" class="text-red-400 hover:text-red-600">✕</button>
+        </div>
+      </el-dialog>
       <el-card class="min-h-[100vh]">
         <el-tabs v-model="activeTab">
           <el-tab-pane
@@ -1047,135 +1165,6 @@ const getConversionRangeText = (): string => {
         </template>
       </el-dialog>
 
-      <!-- ========== AI 智能分析对话框 ========== -->
-      <el-dialog
-        v-model="aiDialogVisible"
-        title="AI 智能证书分析"
-        width="700px"
-        :close-on-click-modal="false"
-      >
-        <!-- Step 1: 上传文件 -->
-        <div v-if="aiStep === 1">
-          <el-alert type="info" :closable="false" class="mb-4">
-            <template #title>上传 PDF 格式的证明材料，AI 将自动识别内容并推荐对应加分项</template>
-          </el-alert>
-          <div class="flex flex-col items-center gap-4 py-6">
-            <div
-              class="w-full border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-400 transition-colors"
-              @click="aiCertFileInput?.click()"
-            >
-              <div class="text-4xl text-gray-300 mb-2">📄</div>
-              <div v-if="aiCertFile" class="text-blue-600 font-medium">{{ aiCertFile.name }}</div>
-              <div v-else class="text-gray-400">点击选择 PDF 文件（最大 10MB）</div>
-            </div>
-            <input
-              ref="aiCertFileInput"
-              type="file"
-              accept=".pdf"
-              class="hidden"
-              @change="handleAiFileChange"
-            />
-            <el-button
-              type="primary"
-              :loading="aiAnalyzing"
-              :disabled="!aiCertFile"
-              @click="handleAiAnalyze"
-              size="large"
-            >
-              {{ aiAnalyzing ? 'AI 正在分析...' : '开始 AI 分析' }}
-            </el-button>
-          </div>
-        </div>
-
-        <!-- Step 2: 推荐列表 -->
-        <div v-else-if="aiStep === 2">
-          <div class="mb-4 text-sm text-gray-500">AI 基于证书内容，推荐以下可申请的加分项：</div>
-          <div v-if="aiAnalyzeResult?.suggestions.length === 0" class="text-center py-8 text-gray-400">
-            <div class="text-2xl mb-2">🤔</div>
-            <div>未找到匹配的加分项，建议手动选择模板申请</div>
-          </div>
-          <div v-else class="space-y-3">
-            <div
-              v-for="s in aiAnalyzeResult?.suggestions"
-              :key="s.templateId + '-' + s.ruleId"
-              class="border rounded-lg p-4 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all"
-              :class="{ 'border-blue-500 bg-blue-50': aiSelectedSuggestion?.ruleId === s.ruleId && aiSelectedSuggestion?.templateId === s.templateId }"
-              @click="handleAiSelectSuggestion(s)"
-            >
-              <div class="flex justify-between items-start">
-                <div>
-                  <span class="font-semibold">{{ s.templateName }}</span>
-                  <el-tag size="small" type="success" class="ml-2">{{ s.ruleName }}</el-tag>
-                </div>
-                <div class="text-xl font-bold text-green-600">{{ s.estimatedScore }} 分</div>
-              </div>
-              <div class="text-sm text-gray-500 mt-2">{{ s.reason }}</div>
-              <div v-if="aiGenerating && aiSelectedSuggestion?.ruleId === s.ruleId" class="mt-2 text-blue-500 text-sm">
-                正在生成申请数据...
-              </div>
-            </div>
-          </div>
-          <div class="mt-4">
-            <el-button @click="aiStep = 1; aiCertFile = null">重新上传</el-button>
-          </div>
-        </div>
-
-        <!-- Step 3: 确认并提交 -->
-        <div v-else-if="aiStep === 3 && aiGenerateResult">
-          <el-alert type="success" :closable="false" class="mb-4">
-            <template #title>AI 已生成申请数据，请上传证明材料后提交</template>
-          </el-alert>
-          <el-form label-width="100px" class="mb-4">
-            <el-form-item label="加分项目">
-              <span class="font-semibold">{{ aiGenerateResult.templateName }}</span>
-              <el-tag size="small" class="ml-2">{{ aiSelectedSuggestion?.ruleName }}</el-tag>
-            </el-form-item>
-            <el-form-item label="预计得分">
-              <span class="text-2xl font-bold text-green-600">{{ aiGenerateResult.applyScore }} 分</span>
-            </el-form-item>
-            <el-form-item label="AI 备注">
-              <el-input v-model="aiGenerateResult.remark" type="textarea" :rows="3" />
-            </el-form-item>
-            <el-form-item label="证明材料" required>
-              <div class="w-full">
-                <FileTable
-                  v-model="aiProofItems"
-                  :show-file-value="true"
-                  file-value-label="证明分数"
-                  file-value-type="number"
-                  :file-value-min="0"
-                  :file-value-max="999.99"
-                  :file-value-precision="2"
-                  file-value-placeholder="请输入该证明对应的分数"
-                  file-category="SCORE_PROOF"
-                  file-purpose="加分申请证明材料"
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                  :limit="40"
-                  :show-upload-button="true"
-                  :show-preview-button="true"
-                  :show-download-button="true"
-                  :show-delete-button="true"
-                />
-              </div>
-            </el-form-item>
-          </el-form>
-        </div>
-
-        <template #footer>
-          <div class="flex justify-between">
-            <el-button @click="aiDialogVisible = false">取消</el-button>
-            <el-button
-              v-if="aiStep === 3"
-              type="primary"
-              :loading="aiSubmitting"
-              :disabled="aiProofItems.length === 0"
-              @click="handleAiSubmit"
-            >
-              提交申请
-            </el-button>
-          </div>
-        </template>
-      </el-dialog>
   </div>
 </template>
   
@@ -1189,4 +1178,8 @@ const getConversionRangeText = (): string => {
   .demand-row:hover {
     border-color: #3377FF;
   }
+  .markdown-body :deep(p) { margin: 0.25em 0; }
+  .markdown-body :deep(strong) { font-weight: 600; }
+  .markdown-body :deep(code) { background: #f0f0f0; padding: 0 4px; border-radius: 3px; font-size: 0.85em; }
+  .markdown-body :deep(pre) { background: #f5f5f5; padding: 8px; border-radius: 4px; overflow-x: auto; }
   </style>
