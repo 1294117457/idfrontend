@@ -211,6 +211,10 @@
   
           <!-- 输入区域 -->
           <div class="border-t p-3">
+            <div v-if="isContextLimitReached" class="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-2 flex items-center justify-between">
+              <span>上下文已达上限</span>
+              <button @click="handleClearHistory" class="text-amber-700 font-medium hover:underline">开启新对话</button>
+            </div>
             <div class="flex items-center gap-2">
               <input
                 v-model="inputMessage"
@@ -218,11 +222,11 @@
                 type="text"
                 placeholder="输入消息，咨询加分政策..."
                 class="flex-1 px-4 py-2 bg-gray-100 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                :disabled="isLoading"
+                :disabled="isLoading || isContextLimitReached"
               />
               <button
                 @click="handleSend"
-                :disabled="isLoading || !inputMessage.trim()"
+                :disabled="isLoading || !inputMessage.trim() || isContextLimitReached"
                 class="w-10 h-10 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 rounded-full flex items-center justify-center transition-colors"
               >
                 <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -419,6 +423,7 @@
   const isLoading = ref(false)
   const isStreaming = ref(false)
   const isInterrupted = ref(false)
+  const isContextLimitReached = ref(false)
   const hasNewMessage = ref(false)
   const inputMessage = ref('')
   const supplementInput = ref('')
@@ -467,6 +472,13 @@
     onInterrupt(question) {
       isInterrupted.value = true
       messages.value.push({ role: 'interrupt', content: question })
+      scrollToBottom()
+    },
+    onContextLimit(message) {
+      isLoading.value = false
+      isStreaming.value = false
+      isContextLimitReached.value = true
+      messages.value[aiMsgIndex].content = `⚠️ ${message}`
       scrollToBottom()
     },
     onResult(result) {
@@ -534,9 +546,10 @@
     isLoading.value = false
     isStreaming.value = false
     isInterrupted.value = false
+    isContextLimitReached.value = false
     supplementInput.value = ''
+    // 生成新的 sessionId
     currentSessionId.value = 'sess_' + Date.now()
-    ElMessage.success('已开始新对话')
   }
   
   // 监听消息变化

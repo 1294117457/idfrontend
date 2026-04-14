@@ -582,7 +582,12 @@ const getConversionRangeText = (): string => {
   }
   
   // ==================== AI 智能申请（对话式） ====================
-  interface AiMessage { role: 'user' | 'assistant'; content: string }
+  interface AiMessage {
+    role: 'user' | 'assistant' | 'confirm-action'
+    content: string
+    acted?: boolean
+    suggestions?: any[]
+  }
 
   const aiChatVisible = ref(false)
   const aiMessages = ref<AiMessage[]>([])
@@ -590,10 +595,10 @@ const getConversionRangeText = (): string => {
   const aiStreaming = ref(false)
   const aiInterrupted = ref(false)
   const aiInterruptSuggestions = ref<any[]>([])
+  const aiContextLimitReached = ref(false)
   const aiSelectedIdx = ref(0)
   const aiSessionId = ref('ai_score_' + Date.now())
   const aiInput = ref('')
-  const aiSupplement = ref('')
   const aiPendingFile = ref<File | null>(null)
   const aiProofItems = ref<FileTableItem[]>([])
   const aiMessageContainer = ref<HTMLElement | null>(null)
@@ -624,9 +629,29 @@ const getConversionRangeText = (): string => {
     onInterrupt(question, extra) {
       aiLoading.value = false
       aiStreaming.value = false
-      aiInterrupted.value = true
-      aiInterruptSuggestions.value = extra?.suggestions ?? []
       aiMessages.value[aiMsgIdx].content = question
+      if (extra?.requireFiles && extra.suggestions?.length) {
+        // 有匹配结果 → 以 confirm-action 气泡形式内联显示
+        aiInterrupted.value = false
+        aiInterruptSuggestions.value = []
+        aiMessages.value.push({
+          role: 'confirm-action',
+          content: question,
+          suggestions: extra.suggestions,
+          acted: false,
+        })
+      } else {
+        // 信息不完整 → 显示文字补充输入框
+        aiInterrupted.value = true
+        aiInterruptSuggestions.value = []
+      }
+      scrollAiToBottom()
+    },
+    onContextLimit(message) {
+      aiLoading.value = false
+      aiStreaming.value = false
+      aiContextLimitReached.value = true
+      aiMessages.value.push({ role: 'assistant', content: `⚠️ ${message}` })
       scrollAiToBottom()
     },
     onResult(result) {
@@ -655,6 +680,7 @@ const getConversionRangeText = (): string => {
     aiMessages.value.push({ role: 'user', content: file ? `${msg}\n📎 ${file.name}` : msg })
     aiInput.value = ''
     aiPendingFile.value = null
+    const wasInterrupted = aiInterrupted.value  // 记录当前是否处于 interrupt 状态
     aiInterrupted.value = false
     aiInterruptSuggestions.value = []
     scrollAiToBottom()
@@ -664,37 +690,29 @@ const getConversionRangeText = (): string => {
     aiLoading.value = true
     aiStreaming.value = false
 
-    aiController = agentStreamChat(msg, aiSessionId.value, file ?? undefined, buildAiCallbacks(idx))
+    if (wasInterrupted) {
+      // 信息补充 → 走 resume（恢复被 interrupt 的 askForMoreNode）
+      aiController = agentResumeStream(aiSessionId.value, msg, buildAiCallbacks(idx))
+    } else {
+      aiController = agentStreamChat(msg, aiSessionId.value, file ?? undefined, buildAiCallbacks(idx))
+    }
   }
 
-  const handleAiResume = () => {
-    const text = aiSupplement.value.trim()
-    if (!text) return
-
-    aiMessages.value.push({ role: 'user', content: text })
-    aiSupplement.value = ''
-    aiInterrupted.value = false
-    aiInterruptSuggestions.value = []
-    scrollAiToBottom()
-
-    aiMessages.value.push({ role: 'assistant', content: '' })
-    const idx = aiMessages.value.length - 1
-    aiLoading.value = true
-    aiStreaming.value = false
-
-    aiController = agentResumeStream(aiSessionId.value, text, buildAiCallbacks(idx))
-  }
-
-  const handleAiConfirm = () => {
-    const selected = aiInterruptSuggestions.value[aiSelectedIdx.value]
+  const handleAiConfirm = (msgSuggestions?: any[]) => {
+    const suggestions = msgSuggestions ?? aiInterruptSuggestions.value
+    const selected = suggestions[aiSelectedIdx.value] ?? suggestions[0]
     if (!selected || aiProofItems.value.length === 0) {
       ElMessage.warning('请选择加分项并上传至少一个证明材料')
       return
     }
+    // 标记对应 confirm-action 消息为已操作
+    const msgs = aiMessages.value
+    const msg = [...msgs].reverse().find((m: AiMessage) => m.role === 'confirm-action' && !m.acted)
+    if (msg) msg.acted = true
+
     const proofFileIds = aiProofItems.value.map(p => p.fileId)
     const proofValues  = aiProofItems.value.map(p => Number(p.fileValue) || 0)
-
-    const confirmJson = JSON.stringify({ confirm: true, proofFileIds, proofValues })
+    const confirmJson = JSON.stringify({ action: 'confirm', proofFileIds, proofValues })
 
     aiMessages.value.push({ role: 'user', content: `确认提交 ${selected.templateName}` })
     aiInterrupted.value = false
@@ -710,7 +728,12 @@ const getConversionRangeText = (): string => {
     aiController = agentResumeStream(aiSessionId.value, confirmJson, buildAiCallbacks(idx))
   }
 
-  const handleAiCancel = () => {
+  const handleAiCancel = (msgSuggestions?: any[]) => {
+    // 标记对应 confirm-action 消息为已操作
+    const msgs2 = aiMessages.value
+    const msg2 = [...msgs2].reverse().find((m: AiMessage) => m.role === 'confirm-action' && !m.acted)
+    if (msg2) msg2.acted = true
+
     aiMessages.value.push({ role: 'user', content: 'cancel' })
     aiInterrupted.value = false
     aiInterruptSuggestions.value = []
@@ -722,7 +745,22 @@ const getConversionRangeText = (): string => {
     aiLoading.value = true
     aiStreaming.value = false
 
-    aiController = agentResumeStream(aiSessionId.value, 'cancel', buildAiCallbacks(idx))
+    aiController = agentResumeStream(aiSessionId.value, JSON.stringify({ action: 'cancel' }), buildAiCallbacks(idx))
+  }
+
+  const handleNewConversation = () => {
+    aiController?.abort()
+    aiController = null
+    aiMessages.value = []
+    aiInput.value = ''
+    aiPendingFile.value = null
+    aiProofItems.value = []
+    aiInterrupted.value = false
+    aiInterruptSuggestions.value = []
+    aiContextLimitReached.value = false
+    aiLoading.value = false
+    aiStreaming.value = false
+    aiSessionId.value = 'ai_score_' + Date.now()
   }
 
   // ==================== 生命周期 ====================
@@ -747,24 +785,104 @@ const getConversionRangeText = (): string => {
       </el-card>
 
       <!-- AI 对话框 -->
-      <el-dialog v-model="aiChatVisible" title="AI 智能申请助手" width="640px" :close-on-click-modal="false" destroy-on-close>
+      <el-dialog v-model="aiChatVisible" title="AI 智能申请助手" width="760px" :close-on-click-modal="false" destroy-on-close>
+        <template #header>
+          <div class="flex items-center justify-between w-full pr-4">
+            <span class="font-semibold text-base">AI 智能申请助手</span>
+            <el-button size="small" plain @click="handleNewConversation">开启新对话</el-button>
+          </div>
+        </template>
+
+        <!-- 上下文超限提示 -->
+        <el-alert
+          v-if="aiContextLimitReached"
+          type="warning"
+          :closable="false"
+          class="mb-3"
+          show-icon
+        >
+          <template #default>
+            对话上下文已达上限，请点击「开启新对话」继续。
+            <el-button size="small" type="warning" plain class="ml-2" @click="handleNewConversation">开启新对话</el-button>
+          </template>
+        </el-alert>
+
         <!-- 消息列表 -->
-        <div ref="aiMessageContainer" class="h-80 overflow-y-auto space-y-3 px-1">
-          <div v-if="aiMessages.length === 0" class="text-center text-gray-400 py-8">
-            <div class="text-3xl mb-2">🤖</div>
-            <p class="text-sm">请上传证书文件或描述您的加分情况，我来帮您匹配</p>
-          </div>
-          <div v-for="(msg, i) in aiMessages" :key="i" :class="['flex', msg.role === 'user' ? 'justify-end' : 'justify-start']">
-            <div
-              v-if="msg.role === 'assistant' && msg.content"
-              class="max-w-[85%] px-4 py-2 rounded-2xl text-sm bg-gray-100 text-gray-800 rounded-bl-md"
-            >
-              <div class="markdown-body" v-html="renderAiMarkdown(msg.content)" />
+        <div ref="aiMessageContainer" class="h-[28rem] overflow-y-auto space-y-3 px-1">
+          <div v-if="aiMessages.length === 0" class="py-6">
+            <div class="text-center mb-4">
+              <div class="text-4xl mb-2">🤖</div>
+              <p class="text-sm font-medium text-gray-600">AI 智能申请助手</p>
             </div>
-            <div v-else-if="msg.role === 'user'" class="max-w-[80%] px-4 py-2 rounded-2xl text-sm bg-blue-500 text-white rounded-br-md whitespace-pre-wrap">
-              {{ msg.content }}
+            <div class="bg-blue-50 rounded-xl p-4 text-sm text-gray-600 space-y-1.5">
+              <div class="font-medium text-blue-700 mb-2">💡 您可以这样开始：</div>
+              <p>• 上传证书文件（PDF / Word），AI 自动识别并匹配加分项</p>
+              <p>• 直接描述情况，例如："我参加了全国大学生竞赛并获得一等奖"</p>
+              <p>• 信息不足时，AI 会追问，无需重新输入之前的内容</p>
+              <p>• 匹配成功后，页面内直接上传证明材料并确认提交</p>
             </div>
           </div>
+          <template v-for="(msg, i) in aiMessages" :key="i">
+            <!-- 用户消息 -->
+            <div v-if="msg.role === 'user'" class="flex justify-end">
+              <div class="max-w-[80%] px-4 py-2 rounded-2xl text-sm bg-blue-500 text-white rounded-br-md whitespace-pre-wrap">
+                {{ msg.content }}
+              </div>
+            </div>
+            <!-- AI 消息 -->
+            <div v-else-if="msg.role === 'assistant' && msg.content" class="flex justify-start">
+              <div class="max-w-[88%] px-4 py-2 rounded-2xl text-sm bg-gray-100 text-gray-800 rounded-bl-md">
+                <div class="markdown-body" v-html="renderAiMarkdown(msg.content)" />
+              </div>
+            </div>
+            <!-- 确认操作气泡 -->
+            <div v-else-if="msg.role === 'confirm-action'" class="flex justify-start w-full">
+              <!-- 已操作 → 灰色提示 -->
+              <div v-if="msg.acted" class="text-xs text-gray-400 bg-gray-50 border border-gray-200 px-4 py-2 rounded-xl">
+                ✅ 已操作
+              </div>
+              <!-- 待操作 → 展示 FileTable + 按钮 -->
+              <div v-else class="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+                <div class="text-sm font-semibold text-gray-700">匹配结果，请选择并上传证明材料：</div>
+                <div
+                  v-for="(s, idx) in msg.suggestions"
+                  :key="idx"
+                  class="border rounded-lg p-3 cursor-pointer hover:border-blue-400 transition-colors"
+                  :class="{ 'border-blue-500 bg-blue-50': aiSelectedIdx === idx }"
+                  @click="aiSelectedIdx = idx"
+                >
+                  <div class="flex justify-between">
+                    <span class="font-medium text-sm">{{ s.templateName }} / {{ s.ruleName }}</span>
+                    <span class="text-green-600 font-bold text-sm">{{ s.estimatedScore }} 分</span>
+                  </div>
+                  <div class="text-xs text-gray-500 mt-1">{{ s.reason }}</div>
+                </div>
+                <div class="text-sm font-semibold text-gray-700">上传证明材料：</div>
+                <FileTable
+                  v-model="aiProofItems"
+                  :show-file-value="true"
+                  file-value-label="证明分数"
+                  file-value-type="number"
+                  :file-value-min="0"
+                  :file-value-max="999.99"
+                  :file-value-precision="2"
+                  file-value-placeholder="对应分数"
+                  file-category="SCORE_PROOF"
+                  file-purpose="加分申请证明材料"
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                />
+                <div class="flex gap-2 justify-end pt-1">
+                  <el-button size="small" @click="handleAiCancel(msg.suggestions)">取消申请</el-button>
+                  <el-button
+                    size="small"
+                    type="primary"
+                    :disabled="aiProofItems.length === 0 || aiLoading"
+                    @click="handleAiConfirm(msg.suggestions)"
+                  >确认提交</el-button>
+                </div>
+              </div>
+            </div>
+          </template>
           <div v-if="aiLoading && !aiStreaming" class="flex justify-start">
             <div class="bg-gray-100 px-4 py-3 rounded-2xl rounded-bl-md">
               <div class="flex space-x-1">
@@ -774,74 +892,30 @@ const getConversionRangeText = (): string => {
           </div>
         </div>
 
-        <!-- HITL：有匹配结果时展示上传区 + 确认 -->
-        <div v-if="aiInterrupted && aiInterruptSuggestions.length > 0" class="mt-4 border-t pt-4 space-y-3">
-          <div class="text-sm font-semibold text-gray-700">匹配结果：</div>
-          <div
-            v-for="(s, idx) in aiInterruptSuggestions"
-            :key="idx"
-            class="border rounded-lg p-3 cursor-pointer hover:border-blue-400 transition-colors"
-            :class="{ 'border-blue-500 bg-blue-50': aiSelectedIdx === idx }"
-            @click="aiSelectedIdx = idx"
-          >
-            <div class="flex justify-between">
-              <span class="font-medium">{{ s.templateName }} / {{ s.ruleName }}</span>
-              <span class="text-green-600 font-bold">{{ s.estimatedScore }} 分</span>
-            </div>
-            <div class="text-xs text-gray-500 mt-1">{{ s.reason }}</div>
+        <!-- 统一输入区（含文件上传，始终可见） -->
+        <div v-if="!aiContextLimitReached" class="mt-3">
+          <!-- AI 追问时的提示横幅 -->
+          <div v-if="aiInterrupted" class="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mb-2">
+            💬 AI 正在等待您补充信息，可输入文字或上传相关文件后点击发送
           </div>
-
-          <div class="text-sm font-semibold text-gray-700 mt-2">上传证明材料：</div>
-          <FileTable
-            v-model="aiProofItems"
-            :show-file-value="true"
-            file-value-label="证明分数"
-            file-value-type="number"
-            :file-value-min="0"
-            :file-value-max="999.99"
-            :file-value-precision="2"
-            file-value-placeholder="对应分数"
-            file-category="SCORE_PROOF"
-            file-purpose="加分申请证明材料"
-            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-          />
-
-          <div class="flex gap-2 justify-end">
-            <el-button @click="handleAiCancel">取消申请</el-button>
-            <el-button
-              type="primary"
-              :disabled="aiProofItems.length === 0 || aiLoading"
-              @click="handleAiConfirm"
-            >确认提交</el-button>
-          </div>
-        </div>
-
-        <!-- HITL：信息不完整时的文字补充 -->
-        <div v-else-if="aiInterrupted" class="mt-3">
           <div class="flex gap-2">
-            <el-input v-model="aiSupplement" placeholder="请补充信息..." @keyup.enter="handleAiResume" />
-            <el-button type="primary" @click="handleAiResume" :disabled="!aiSupplement.trim()">发送</el-button>
+            <label class="flex items-center justify-center w-9 h-9 rounded-lg border cursor-pointer text-gray-400 hover:text-blue-500 hover:border-blue-400 transition-colors flex-shrink-0" title="上传证书">
+              <input type="file" class="hidden" accept=".pdf,.docx,.doc" @change="onAiFileChange" />
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+              </svg>
+            </label>
+            <el-input
+              v-model="aiInput"
+              :placeholder="aiInterrupted ? '请补充信息或上传相关文件...' : '输入消息或上传证书文件...'"
+              @keyup.enter="handleAiSend"
+              :disabled="aiLoading"
+            />
+            <el-button type="primary" @click="handleAiSend" :loading="aiLoading" :disabled="!aiInput.trim() && !aiPendingFile">发送</el-button>
           </div>
         </div>
 
-        <!-- 普通输入区 -->
-        <div v-else class="mt-3 flex gap-2">
-          <label class="flex items-center justify-center w-9 h-9 rounded-lg border cursor-pointer text-gray-400 hover:text-blue-500 hover:border-blue-400 transition-colors flex-shrink-0" title="上传证书">
-            <input type="file" class="hidden" accept=".pdf,.docx,.doc" @change="onAiFileChange" />
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-            </svg>
-          </label>
-          <el-input
-            v-model="aiInput"
-            placeholder="输入消息或上传证书文件..."
-            @keyup.enter="handleAiSend"
-            :disabled="aiLoading"
-          />
-          <el-button type="primary" @click="handleAiSend" :loading="aiLoading" :disabled="!aiInput.trim() && !aiPendingFile">发送</el-button>
-        </div>
-
-        <div v-if="aiPendingFile" class="mt-2 flex items-center gap-2 text-xs text-gray-500">
+        <div v-if="aiPendingFile && !aiContextLimitReached" class="mt-2 flex items-center gap-2 text-xs text-gray-500">
           <span>📎 {{ aiPendingFile.name }}</span>
           <button @click="aiPendingFile = null" class="text-red-400 hover:text-red-600">✕</button>
         </div>

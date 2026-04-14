@@ -9,7 +9,7 @@ export interface ApiResponse<T = any> {
   data: T
 }
 
-/** AI ????? */
+/** AI ?????? */
 export interface AnalyzeSuggestion {
   templateId: number
   templateName: string
@@ -25,7 +25,7 @@ export interface AnalyzeCertificateResult {
   suggestions: AnalyzeSuggestion[]
 }
 
-/** ???????? */
+/** ?????? */
 export interface GenerateApplicationResult {
   templateName: string
   templateType: string
@@ -43,10 +43,7 @@ export const sendMessage = async (message: string): Promise<ApiResponse<string>>
 
 /**
  * ???????SSE?
- * - onToken: ????? token ??
- * - onDone:  ?????
- * - onError: ????
- * - ?? AbortController??? .abort() ?????
+ * ?? AbortController??? .abort() ?????
  */
 export const sendMessageStream = (
   message: string,
@@ -114,7 +111,7 @@ export const clearConversation = async (): Promise<ApiResponse<void>> => {
   return response.data
 }
 
-/** ?? PDF ?????????? */
+/** ?? PDF ????? AI ???? */
 export const analyzeCertificate = async (file: File): Promise<ApiResponse<AnalyzeCertificateResult>> => {
   const formData = new FormData()
   formData.append('file', file)
@@ -125,7 +122,7 @@ export const analyzeCertificate = async (file: File): Promise<ApiResponse<Analyz
   return response.data
 }
 
-/** ???????????????????? */
+/** ??????????????????? */
 export const generateApplication = async (
   certificateText: string,
   selectedTemplateId: number,
@@ -145,7 +142,7 @@ export const generateApplication = async (
 
 /** SSE ???? */
 export interface AgentSSEEvent {
-  type: 'token' | 'interrupt' | 'result' | 'error' | 'session'
+  type: 'token' | 'interrupt' | 'result' | 'error' | 'session' | 'context_limit'
   data: any
 }
 
@@ -164,6 +161,7 @@ export interface AgentResult {
 export interface AgentStreamCallbacks {
   onToken?: (content: string) => void
   onInterrupt?: (question: string, extra?: { suggestions?: any[]; requireFiles?: boolean }) => void
+  onContextLimit?: (message: string) => void
   onResult?: (result: AgentResult) => void
   onSession?: (sessionId: string) => void
   onError?: (message: string) => void
@@ -194,11 +192,12 @@ async function consumeSSE(response: Response, callbacks?: AgentStreamCallbacks) 
       try {
         const event: AgentSSEEvent = JSON.parse(payload)
         switch (event.type) {
-          case 'token':     callbacks?.onToken?.(event.data.content); break
-          case 'interrupt': callbacks?.onInterrupt?.(event.data.question, event.data); break
-          case 'result':    callbacks?.onResult?.(event.data); break
-          case 'session':   callbacks?.onSession?.(event.data.sessionId); break
-          case 'error':     callbacks?.onError?.(event.data.message); break
+          case 'token':         callbacks?.onToken?.(event.data.content); break
+          case 'interrupt':     callbacks?.onInterrupt?.(event.data.question, event.data); break
+          case 'context_limit': callbacks?.onContextLimit?.(event.data.message); break
+          case 'result':        callbacks?.onResult?.(event.data); break
+          case 'session':       callbacks?.onSession?.(event.data.sessionId); break
+          case 'error':         callbacks?.onError?.(event.data.message); break
         }
       } catch { /* skip malformed */ }
     }
