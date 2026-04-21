@@ -1,21 +1,21 @@
 <template>
-  <div class="min-h-screen flex flex-col gap-5 p-4">
+  <div class="page-container flex flex-col gap-5">
     <!-- 加载状态 -->
     <div v-if="loading" class="flex justify-center items-center h-96">
       <el-icon class="is-loading" :size="50"><Loading /></el-icon>
     </div>
 
     <!-- 未绑定学生信息提示 -->
-    <el-card class="min-h-[100vh]" v-else-if="!userInfo">
+    <el-card v-else-if="!userInfo">
       <el-empty description="请先完成学生信息绑定">
         <el-button type="primary" @click="$router.push('/home/profile')">前往绑定</el-button>
       </el-empty>
     </el-card>
 
     <!-- 保研条件认证管理 -->
-    <el-card class="min-h-[100vh]" v-else>
+    <el-card v-else>
       <div class="flex items-center justify-between mb-4">
-        <h4 class="text-[20px] font-bold text-gray-800">保研条件认证</h4>
+        <h4 class="page-title">保研条件认证</h4>
         <el-button 
           type="primary" 
           @click="openDemandDialog"

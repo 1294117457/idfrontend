@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen flex flex-col gap-5 p-4">
+  <div class="page-container flex flex-col gap-5">
     <!-- 加载状态 -->
     <div v-if="loading" class="flex justify-center items-center h-96">
       <el-icon class="is-loading" :size="50"><Loading /></el-icon>
@@ -8,7 +8,7 @@
     <!-- 未绑定学生信息 -->
     <el-card v-else-if="!userInfo">
       <div class="flex items-center justify-between mb-4">
-        <h4 class="text-[20px] font-bold text-gray-800">绑定学生信息</h4>
+        <h4 class="page-title">绑定学生信息</h4>
       </div>
       <el-form :model="bindForm" label-width="120px">
         <el-form-item label="学生邮箱">
@@ -43,7 +43,7 @@
       <!-- 用户基本信息 -->
       <el-card>
         <div class="flex items-center justify-between mb-4">
-          <h4 class="text-[20px] font-bold text-gray-800">用户基本信息</h4>
+          <h4 class="page-title">用户基本信息</h4>
         </div>
         <el-descriptions :column="2" border>
           <el-descriptions-item label="用户ID">{{ userInfo.userId }}</el-descriptions-item>
@@ -56,7 +56,7 @@
       <!-- 学生信息 -->
       <el-card class="student-info-card">
         <div class="flex items-center justify-between mb-4">
-          <h4 class="text-[20px] font-bold text-gray-800">学生信息</h4>
+          <h4 class="page-title">学生信息</h4>
           <el-button type="primary" @click="showEditDialog">修改学生信息</el-button>
         </div>
         <el-descriptions :column="2" border>
@@ -351,7 +351,7 @@ onMounted(() => {
 
 <style scoped>
 .student-info-card {
-  background: linear-gradient(to bottom, #e3f2fd 0%, #ffffff 100%);
+  background: linear-gradient(to bottom, #eef2ff 0%, #ffffff 100%);
 }
 
 .student-info-card :deep(.el-card__body) {

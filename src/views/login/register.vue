@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import UI1 from './component/ui1.vue'
-import TITLEUI from '../home/component/titleUI.vue'
 import { ref, nextTick, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
@@ -14,7 +13,7 @@ const sending = ref(false)
 let timer: number | null = null
 
 const formData = ref({
-  username: '',  // 即学校邮箱（xmu.edu.cn 结尾）
+  username: '',
   password: '',
   passwordSecond: '',
   verifyCode: '',
@@ -35,9 +34,7 @@ const refreshCaptcha = async () => {
   }
 }
 
-// 校验并发送验证码（进入步骤2）
 const nextStep = async () => {
-  // 校验 username 为学校邮箱格式
   if (!formData.value.username || !formData.value.username.endsWith('xmu.edu.cn')) {
     ElMessage.error('请输入有效的学校邮箱（以 xmu.edu.cn 结尾）');
     return;
@@ -158,94 +155,314 @@ onMounted(() => {
   refreshCaptcha()
 })
 </script>
+
 <template>
-  <div class="fixed inset-0 bg-white w-full h-full overflow-hidden select-none">
-    <!-- 背景图 -->
-    <img src="@/assets/images/bg.png" class="fixed top-1/2 left-[30%] -translate-x-1/2 -translate-y-1/2 w-[30vw] object-contain z-0" alt="背景" />
-    <!-- 标题 -->
-    <TITLEUI/>
+  <div class="auth-page">
     <UI1 />
-    <div class="fixed h-full top-0 bottom-0 right-[12vw] flex flex-col">
-      <div class="relative bg-[rgba(80,70,70,0.7)] rounded-xl p-[2em] shadow-lg text-white w-[450px] max-w-[90vw] my-auto">
-        <div class="absolute top-4 left-4 z-10">
-          <a href="/login" class="flex items-center gap-2 text-gray-200 hover:text-white text-base back-link">
-            <img src="@/assets/svgs/return.svg" alt="返回图标" />
-            返回登录
-          </a>
+    <div class="auth-center">
+      <div class="auth-card">
+        <a href="/login" class="back-link">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+          返回登录
+        </a>
+
+        <h2 class="card-title">注册账号</h2>
+        <p class="card-desc">请按照步骤完成注册</p>
+
+        <!-- Step Indicator -->
+        <div class="step-bar">
+          <div :class="['step-dot', step >= 1 && 'active']">1</div>
+          <div class="step-line" :class="{ active: step >= 2 }"></div>
+          <div :class="['step-dot', step >= 2 && 'active']">2</div>
         </div>
-        <div class="text-center">
-          <div class="font-bold text-[24px] text-white m-0">注册账号</div>
-          <p class="text-gray-300 text-[12px]">请按照步骤完成</p>
-        </div>
-        <div class="w-full mx-auto flex justify-center items-center gap-4 mb-5 text-center">
-          <div :class="['flex-1 px-5 py-3 font-bold text-lg bg-transparent outline-none transition duration-200 rounded-none cursor-default border-b-2', step === 1 ? 'text-white border-white' : 'text-gray-300 border-transparent']">1</div>
-          <div :class="['flex-1 px-5 py-3 font-bold text-lg bg-transparent outline-none transition duration-200 rounded-none cursor-default border-b-2', step === 2 ? 'text-white border-white' : 'text-gray-300 border-transparent']">2</div>
-        </div>
-        <div class="transition-all">
-          <!-- 步骤1：输入学校邮箱和密码 -->
-          <el-form v-if="step === 1" class="space-y-4" @submit.prevent="nextStep">
-            <el-form-item>
-              <input v-model="formData.username" type="email" placeholder="请输入学校邮箱（xxx@stu.xmu.edu.cn）" autofocus
-                class="w-full h-12 px-4 rounded-lg bg-white text-black border border-gray-300
-                focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition outline-none"/>
-            </el-form-item>
-            <el-form-item>
-              <input v-model="formData.password" type="password" placeholder="请输入密码（字母+数字，不少于8位）"
-                class="w-full h-12 px-4 rounded-lg bg-white text-black border border-gray-300
-                focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition outline-none"/>
-            </el-form-item>
-            <el-form-item>
-              <input v-model="formData.passwordSecond" type="password" placeholder="再次输入密码"
-                class="w-full h-12 px-4 rounded-lg bg-white text-black border border-gray-300
-                focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition outline-none"/>
-            </el-form-item>
-            <el-form-item>
-              <div class="flex items-center gap-3 w-full">
-                <input v-model="formData.verifyCode" type="text" placeholder="请输入图形验证码" class="w-full h-12 px-4 rounded-lg bg-white text-black border border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition outline-none"/>
-                <img :src="captchaUrl" alt="验证码" class="w-full h-12 object-cover rounded cursor-pointer" @click="refreshCaptcha" title="点击刷新验证码" />
-              </div>
-            </el-form-item>
-            <el-form-item>
-              <button type="submit"
-                class="h-12 w-full flex flex-row items-center justify-center bg-blue-700 font-bold text-xl tracking-[0.1em] text-white rounded-lg transition cursor-pointer hover:bg-[#4672F4] active:scale-95">
-                下一步
-              </button>
-            </el-form-item>
-          </el-form>
-          <!-- 步骤2：输入邮箱验证码 -->
-          <el-form v-if="step === 2" class="space-y-4" @submit.prevent="verifyCodeStep">
-            <div class="text-center text-white mb-2">验证码已发送至邮箱 <span class="font-bold">{{ formData.username }}</span></div>
-            <el-form-item class="flex justify-center">
-              <div class="flex w-full justify-center gap-2">
-                <input
-                  v-for="(v, i) in codeInputs"
-                  :key="i"
-                  v-model="codeInputs[i]"
-                  maxlength="1"
-                  type="text"
-                  :data-code-input="i"
-                  class="w-10 h-12 text-center text-xl font-bold rounded-lg bg-white text-black border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 transition outline-none"
-                  @input="handleInput(i)"
-                  @keydown="handleKeydown($event, i)"
-                />
-              </div>
-            </el-form-item>
-            <button type="button" class="flex w-full justify-center cursor-pointer text-red-500 bg-transparent border-none text-base"
-              :disabled="sending" @click="resendCode">
-              重新发送验证码<span v-if="sending" class="text-gray-300 ml-2">({{ countdown }}s)</span>
-            </button>
-            <el-form-item>
-              <button type="submit"
-                class="h-12 w-full flex flex-row items-center justify-center bg-blue-700 font-bold text-xl tracking-[0.1em] text-white rounded-lg transition cursor-pointer hover:bg-[#4672F4] active:scale-95">
-                验证并注册
-              </button>
-            </el-form-item>
-          </el-form>
-        </div>
-        <div class="text-center mt-4 text-sm text-white/60 font-normal">
-          版本号：<span>1.0.0</span>
-        </div>
+
+        <!-- Step 1 -->
+        <form v-if="step === 1" class="auth-form" @submit.prevent="nextStep">
+          <div class="form-group">
+            <label class="form-label">学校邮箱</label>
+            <input v-model="formData.username" type="email" placeholder="xxx@stu.xmu.edu.cn" autofocus class="form-input" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">密码</label>
+            <input v-model="formData.password" type="password" placeholder="字母+数字，不少于8位" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">确认密码</label>
+            <input v-model="formData.passwordSecond" type="password" placeholder="再次输入密码" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">图形验证码</label>
+            <div class="captcha-row">
+              <input v-model="formData.verifyCode" type="text" placeholder="请输入验证码" class="form-input" />
+              <img :src="captchaUrl" alt="验证码" class="captcha-img" @click="refreshCaptcha" title="点击刷新" />
+            </div>
+          </div>
+          <button type="submit" class="submit-btn">下一步</button>
+        </form>
+
+        <!-- Step 2 -->
+        <form v-if="step === 2" class="auth-form" @submit.prevent="verifyCodeStep">
+          <p class="code-sent-tip">验证码已发送至 <strong>{{ formData.username }}</strong></p>
+          <div class="code-inputs">
+            <input
+              v-for="(v, i) in codeInputs"
+              :key="i"
+              v-model="codeInputs[i]"
+              maxlength="1"
+              type="text"
+              :data-code-input="i"
+              class="code-box"
+              @input="handleInput(i)"
+              @keydown="handleKeydown($event, i)"
+            />
+          </div>
+          <button type="button" class="resend-btn" :disabled="sending" @click="resendCode">
+            重新发送验证码<span v-if="sending"> ({{ countdown }}s)</span>
+          </button>
+          <button type="submit" class="submit-btn">验证并注册</button>
+        </form>
+
+        <div class="card-version">v1.0.0</div>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 50%, #f1f5f9 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-center {
+  position: relative;
+  z-index: 2;
+  padding: 2rem;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 440px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  border-radius: 24px;
+  padding: 2.5rem 2rem;
+  box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.04), 0 20px 40px -4px rgba(79, 70, 229, 0.08);
+  position: relative;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #64748b;
+  text-decoration: none;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+  transition: color 0.2s;
+}
+
+.back-link:hover {
+  color: #4f46e5;
+}
+
+.card-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 0.25rem;
+}
+
+.card-desc {
+  color: #94a3b8;
+  font-size: 0.85rem;
+  margin: 0 0 1.25rem;
+}
+
+.step-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 1.5rem;
+}
+
+.step-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border: 2px solid #e2e8f0;
+  color: #94a3b8;
+  background: #fff;
+  transition: all 0.3s;
+}
+
+.step-dot.active {
+  border-color: #4f46e5;
+  background: #4f46e5;
+  color: #fff;
+}
+
+.step-line {
+  width: 60px;
+  height: 2px;
+  background: #e2e8f0;
+  transition: background 0.3s;
+}
+
+.step-line.active {
+  background: #4f46e5;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.form-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.form-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  color: #1e293b;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-input:focus {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.15);
+}
+
+.form-input::placeholder {
+  color: #cbd5e1;
+}
+
+.captcha-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.captcha-row .form-input {
+  flex: 1;
+}
+
+.captcha-img {
+  height: 44px;
+  width: 120px;
+  border-radius: 10px;
+  cursor: pointer;
+  object-fit: cover;
+  border: 1.5px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.submit-btn {
+  width: 100%;
+  height: 46px;
+  margin-top: 0.25rem;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.25s ease;
+}
+
+.submit-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(79, 70, 229, 0.3);
+}
+
+.submit-btn:active {
+  transform: scale(0.98);
+}
+
+.code-sent-tip {
+  text-align: center;
+  color: #475569;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+.code-sent-tip strong {
+  color: #4f46e5;
+}
+
+.code-inputs {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.code-box {
+  width: 44px;
+  height: 52px;
+  text-align: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  color: #1e293b;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.code-box:focus {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.15);
+}
+
+.resend-btn {
+  background: none;
+  border: none;
+  color: #4f46e5;
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.resend-btn:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.card-version {
+  text-align: center;
+  margin-top: 1.5rem;
+  font-size: 0.75rem;
+  color: #cbd5e1;
+}
+</style>

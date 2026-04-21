@@ -309,7 +309,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-screen flex flex-col gap-5 p-4">
+  <div class="page-container flex flex-col gap-5">
     <!-- 加载状态 -->
     <div v-if="loading" class="flex justify-center items-center h-96">
       <el-icon class="is-loading" :size="50"><Loading /></el-icon>
@@ -320,7 +320,7 @@ onMounted(async () => {
       <!-- ✅ 用户基本信息 -->
       <el-card>
         <div class="flex items-center justify-between mb-4">
-          <h4 class="text-[20px] font-bold text-gray-800">用户基本信息</h4>
+          <h4 class="page-title">用户基本信息</h4>
           <el-button type="primary" @click="showUserEditDialog">修改用户信息</el-button>
         </div>
         
@@ -353,7 +353,7 @@ onMounted(async () => {
       <!-- ✅ 学生信息 -->
       <el-card class="student-info-card">
         <div class="flex items-center justify-between mb-4">
-          <h4 class="text-[20px] font-bold text-gray-800">学生信息</h4>
+          <h4 class="page-title">学生信息</h4>
           <div>
             <!-- ✅ 如果没有学生信息，显示绑定按钮 -->
             <el-button v-if="!hasStudentInfo" type="primary" @click="showBindDialog">
@@ -512,7 +512,7 @@ onMounted(async () => {
 
 <style scoped>
   .student-info-card {
-    background: linear-gradient(to bottom, #e3f2fd 0%, #ffffff 100%);
+    background: linear-gradient(to bottom, #eef2ff 0%, #ffffff 100%);
   }
   
   .student-info-card :deep(.el-card__body) {

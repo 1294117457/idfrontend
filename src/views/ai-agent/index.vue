@@ -12,14 +12,14 @@
         <!-- 悬浮提示文字 -->
         <div
           v-if="!isDragging"
-          class="absolute bottom-16 right-0 bg-gray-800 text-white text-xs px-3 py-2 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+          class="absolute bottom-16 right-0 bg-slate-800 text-white text-xs px-3 py-2 rounded-xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none shadow-lg"
         >
-          我是AI助手抽成龟，可以帮助您了解如何使用这个系统
-          <div class="absolute -bottom-1 right-6 w-2 h-2 bg-gray-800 rotate-45"></div>
+          AI 助手，帮您了解如何使用系统
+          <div class="absolute -bottom-1 right-6 w-2 h-2 bg-slate-800 rotate-45"></div>
         </div>
   
         <div
-          class="w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-transform duration-300 overflow-hidden border-2 border-white"
+          class="w-13 h-13 rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform duration-300 overflow-hidden ring-2 ring-white/80"
           :class="{ 'scale-110 shadow-2xl': isDragging }"
           @click="handleClick"
         >
@@ -34,14 +34,14 @@
           <!-- 如果图片加载失败，显示备用图标 -->
           <div
             v-if="avatarError && !isOpen"
-            class="w-full h-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center"
+            class="w-full h-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center"
           >
-            <span class="text-white text-lg font-bold">龟</span>
+            <span class="text-white text-lg font-bold">AI</span>
           </div>
           <!-- 关闭图标 -->
           <div
             v-if="isOpen"
-            class="w-full h-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center"
+            class="w-full h-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center"
           >
             <svg
               class="w-7 h-7 text-white"
@@ -67,7 +67,7 @@
         <!-- 拖拽提示（首次显示） -->
         <div
           v-if="showDragTip && !isDragging"
-          class="absolute -top-8 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-xs px-2 py-1 rounded whitespace-nowrap animate-bounce"
+          class="absolute -top-8 left-1/2 -translate-x-1/2 bg-indigo-500 text-white text-xs px-2 py-1 rounded-lg whitespace-nowrap animate-bounce"
         >
           可拖拽移动
         </div>
@@ -77,12 +77,12 @@
       <Transition name="slide-up">
         <div
           v-if="isOpen"
-          class="fixed z-[9998] w-96 h-[500px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          class="fixed z-[9998] w-96 h-[520px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200/60"
           :style="dialogPosition"
         >
           <!-- 头部 -->
           <div
-            class="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-3 flex items-center justify-between"
+            class="bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-4 py-3 flex items-center justify-between"
           >
             <div class="flex items-center gap-2">
               <!-- 头部头像 -->
@@ -100,7 +100,7 @@
                   <span class="text-xs font-bold">龟</span>
                 </div>
               </div>
-              <span class="font-semibold">抽成龟</span>
+              <span class="font-semibold">AI 助手</span>
             </div>
             <button
               @click="handleClearHistory"
@@ -129,8 +129,8 @@
                   class="w-full h-full object-cover"
                 />
               </div>
-              <p class="text-sm font-medium text-gray-600">你好！我是抽成龟</p>
-              <p class="text-xs mt-1">可以帮助您了解如何使用这个系统</p>
+              <p class="text-sm font-medium text-slate-700">你好！我是 AI 助手</p>
+              <p class="text-xs mt-1 text-slate-400">帮你了解系统功能、查询加分政策</p>
             </div>
   
             <!-- 消息气泡 -->
@@ -182,7 +182,7 @@
               <!-- 用户消息 -->
               <div
                 v-else-if="msg.role === 'user'"
-                class="max-w-[80%] px-4 py-2 rounded-2xl text-sm bg-blue-500 text-white rounded-br-md"
+                class="max-w-[80%] px-4 py-2 rounded-2xl text-sm bg-indigo-500 text-white rounded-br-md"
               >
                 <div class="whitespace-pre-wrap">{{ msg.content }}</div>
               </div>
@@ -221,13 +221,13 @@
                 @keyup.enter="handleSend"
                 type="text"
                 placeholder="输入消息，咨询加分政策..."
-                class="flex-1 px-4 py-2 bg-gray-100 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                class="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                 :disabled="isLoading || isContextLimitReached"
               />
               <button
                 @click="handleSend"
                 :disabled="isLoading || !inputMessage.trim() || isContextLimitReached"
-                class="w-10 h-10 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 rounded-full flex items-center justify-center transition-colors"
+                class="w-10 h-10 bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-300 rounded-full flex items-center justify-center transition-colors"
               >
                 <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path

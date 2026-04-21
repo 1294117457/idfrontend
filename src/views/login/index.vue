@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import UI1 from './component/ui1.vue'
-import TITLEUI from '../home/component/titleUI.vue'
 import { ref , onMounted, onUnmounted ,reactive} from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -16,7 +15,6 @@ import {
   bindWechatToAccount
 } from'@/api/components/apiLogin'
 
-// ✅ 导入企业微信相关接口
 import {
   type WechatWorkQrCodeResponse,
   type WechatWorkLoginStatusResponse,
@@ -30,12 +28,10 @@ import { useUserStore } from '@/stores/profile'
 const userStore = useUserStore()
 const router = useRouter()
 
-//验证码相关================================
 const captchaUrl = ref('')
 const captchaData = ref<CaptchaResponse | null>(null)
 const isLoggingIn = ref(false)
 
-//刷新验证码
 const refreshCaptcha = async () => {
   try {
     captchaData.value = await getCaptcha()
@@ -47,7 +43,6 @@ const refreshCaptcha = async () => {
   }
 }
 
-//登录===================================
 const loginBody=ref<LoginDto>({
   username: '',
   password: '',
@@ -71,14 +66,12 @@ const validate = (): boolean => {
   return true
 }
 
-//点击登录提交表单
 const submitLogin = async () => {
   if (isLoggingIn.value) return
   if (!validate()) return;
   isLoggingIn.value = true
   try {
     const response = await loginPost(loginBody.value);
-    console.log('登录响应', response);
 
     if (response.code === 200) {
       localStorage.setItem('accessToken', response.data.accessToken);
@@ -110,7 +103,6 @@ const workBindForm = reactive({
   password: ''
 })
 
-// 绑定企业微信到现有账号
 const bindWorkToExistingAccount = async () => {
   if (!workBindForm.username || !workBindForm.password) {
     ElMessage.error('请输入用户名和密码')
@@ -128,7 +120,6 @@ const bindWorkToExistingAccount = async () => {
       ElMessage.success('绑定成功')
       workBindDialogVisible.value = false
       
-      // 重新检查登录状态
       const result = await checkWechatWorkLoginStatus(wechatWorkQrState.value)
       if (result && result.status === 'success') {
         localStorage.setItem('accessToken', result.accessToken!)
@@ -150,15 +141,12 @@ const wechatWorkQrState = ref('')
 const isWechatWorkLoading = ref(false)
 let workPollInterval: number | null = null
 
-// 获取企业微信登录二维码
 const getWechatWorkQrCodeData = async () => {
   try {
     isWechatWorkLoading.value = true
     const qrCodeData = await getWechatWorkQrCode()
     wechatWorkQrCode.value = qrCodeData.qrCode
     wechatWorkQrState.value = qrCodeData.state
-    
-    // 开始轮询检查登录状态
     startWechatWorkLoginPolling()
   } catch (error) {
     ElMessage.error('获取企业微信二维码失败')
@@ -168,7 +156,6 @@ const getWechatWorkQrCodeData = async () => {
   }
 }
 
-// 开始轮询检查企业微信登录状态
 const startWechatWorkLoginPolling = () => {
   if (workPollInterval) {
     clearInterval(workPollInterval)
@@ -179,22 +166,18 @@ const startWechatWorkLoginPolling = () => {
       const result = await checkWechatWorkLoginStatus(wechatWorkQrState.value)
       if (result) {
         if (result.status === 'pending_bind') {
-          // 需要绑定账号
           clearInterval(workPollInterval!)
           workPollInterval = null
           pendingWorkUserInfo.value = result
           workBindDialogVisible.value = true
         } else if (result.status === 'success') {
-          // 登录成功
           clearInterval(workPollInterval!)
           workPollInterval = null
           ElMessage.success('企业微信登录成功')
-          
           localStorage.setItem('accessToken', result.accessToken!)
           localStorage.setItem('refreshToken', result.refreshToken!)
           router.push('/home')
         } else if (result.status === 'expired') {
-          // 二维码过期
           clearInterval(workPollInterval!)
           workPollInterval = null
           ElMessage.warning('二维码已过期，请刷新')
@@ -206,7 +189,6 @@ const startWechatWorkLoginPolling = () => {
   }, 2000)
 }
 
-// 停止轮询
 const stopWechatWorkLoginPolling = () => {
   if (workPollInterval) {
     clearInterval(workPollInterval)
@@ -214,13 +196,12 @@ const stopWechatWorkLoginPolling = () => {
   }
 }
 
-// 刷新企业微信二维码
 const refreshWechatWorkQrCode = () => {
   stopWechatWorkLoginPolling()
   getWechatWorkQrCodeData()
 }
 
-// ========== 微信登录相关（保持原有） ==========
+// ========== 微信登录相关 ==========
 const wechatQrCode = ref('')
 const wechatQrState = ref('')
 const isWechatLoading = ref(false)
@@ -234,7 +215,6 @@ const bindForm = reactive({
   password: ''
 })
 
-// 开始轮询检查微信登录状态
 const startWechatLoginPolling = () => {
   if (pollInterval) {
     clearInterval(pollInterval)
@@ -248,18 +228,12 @@ const startWechatLoginPolling = () => {
         pollInterval = null
         
         if (result.status === 'pending_bind') {
-          // 需要绑定账号
           pendingUserInfo.value = result
           bindDialogVisible.value = true
         } else if (result.status === 'success') {
-          // 登录成功
           ElMessage.success('微信登录成功')
-          
-          // 存储token
           localStorage.setItem('accessToken', result.accessToken)
           localStorage.setItem('refreshToken', result.refreshToken)
-          
-          // 跳转到主页面
           router.push('/home')
         }
       }
@@ -269,7 +243,6 @@ const startWechatLoginPolling = () => {
   }, 2000)
 }
 
-// 绑定到现有账号
 const bindToExistingAccount = async () => {
   if (!bindForm.username || !bindForm.password) {
     ElMessage.error('请输入用户名和密码')
@@ -287,7 +260,6 @@ const bindToExistingAccount = async () => {
       ElMessage.success('绑定成功')
       bindDialogVisible.value = false
       
-      // 重新检查登录状态
       const result = await checkWechatLoginStatus(wechatQrState.value)
       if (result && result.status === 'success') {
         localStorage.setItem('accessToken', result.accessToken)
@@ -303,15 +275,12 @@ const bindToExistingAccount = async () => {
   }
 }
 
-// 获取微信登录二维码
 const getWechatQrCode = async () => {
   try {
     isWechatLoading.value = true
     const qrCodeData = await getWechatLoginQrCode()
     wechatQrCode.value = qrCodeData.qrCode
     wechatQrState.value = qrCodeData.state
-    
-    // 开始轮询检查登录状态
     startWechatLoginPolling()
   } catch (error) {
     ElMessage.error('获取微信二维码失败')
@@ -321,7 +290,6 @@ const getWechatQrCode = async () => {
   }
 }
 
-// 停止轮询
 const stopWechatLoginPolling = () => {
   if (pollInterval) {
     clearInterval(pollInterval)
@@ -329,33 +297,26 @@ const stopWechatLoginPolling = () => {
   }
 }
 
-// 刷新微信二维码
 const refreshWechatQrCode = () => {
   stopWechatLoginPolling()
   getWechatQrCode()
 }
 
-//切换视图，验证码/登录
 function switchTab(tab: 'account' | 'qrcode') {
   activeTab.value = tab
-  
   if (tab === 'qrcode') {
-    // ✅ 修改：企业微信扫码登录
     getWechatWorkQrCodeData()
   } else {
-    // 切换到账号登录时停止轮询
     stopWechatWorkLoginPolling()
   }
 }
 
 const activeTab = ref<'account' | 'qrcode'>('account')
 
-//点击注册
 const handleRegister =()=>{
   router.push('/register')
 }
 
-//忘记密码
 const forgotPassword=()=> {
   router.push('/forgot')
 }
@@ -364,7 +325,6 @@ onMounted(()=>{
   refreshCaptcha();
 })
 
-// 组件卸载时清理定时器
 onUnmounted(() => {
   stopWechatLoginPolling()
   stopWechatWorkLoginPolling()
@@ -372,22 +332,93 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 bg-white w-full h-full overflow-hidden select-none">
-    <!-- 背景图 -->
-    <img src="@/assets/images/bg.png" class="fixed top-1/2 left-[30%] -translate-x-1/2 -translate-y-1/2 w-[30vw]  object-contain z-0" alt="背景" />
-    <!-- 标题 -->
-    <TITLEUI/>
+  <div class="login-page">
     <UI1 />
-    
-    <!-- ✅ 企业微信绑定弹窗 -->
-    <el-dialog v-model="workBindDialogVisible" title="企业微信登录" width="400px" :close-on-click-modal="false">
-      <div class="text-center mb-4">
-        <img :src="pendingWorkUserInfo?.avatar || '/default-avatar.png'" alt="头像" class="w-16 h-16 rounded-full mx-auto mb-2" />
-        <p class="text-gray-600 font-medium">{{ pendingWorkUserInfo?.name }}</p>
-        <p class="text-sm text-gray-500 mt-1">{{ pendingWorkUserInfo?.mobile }}</p>
-        <p class="text-sm text-gray-500 mt-3">该企业微信未绑定系统账号，请输入现有账号信息进行绑定：</p>
+
+    <!-- 左侧品牌区 -->
+    <div class="login-brand">
+      <img src="@/assets/images/bg.png" class="brand-illustration" alt="" />
+      <h1 class="brand-title">推免材料处理平台</h1>
+      <p class="brand-subtitle">高效管理保研材料，助力推免之路</p>
+    </div>
+
+    <!-- 右侧登录卡片 -->
+    <div class="login-card-wrap">
+      <div class="login-card">
+        <h2 class="card-title">欢迎登录</h2>
+        <p class="card-desc">统一身份认证</p>
+
+        <!-- Tab 切换 -->
+        <div class="tab-bar">
+          <button
+            :class="['tab-item', activeTab === 'account' && 'active']"
+            @click="switchTab('account')"
+          >账号登录</button>
+          <button
+            :class="['tab-item', activeTab === 'qrcode' && 'active']"
+            @click="switchTab('qrcode')"
+          >扫码登录</button>
+        </div>
+
+        <!-- 账号登录 -->
+        <div v-if="activeTab === 'account'" class="tab-content">
+          <form class="login-form" @submit.prevent="submitLogin">
+            <div class="form-group">
+              <label class="form-label">用户名</label>
+              <input v-model="loginBody.username" type="text" placeholder="请输入用户名" autofocus class="form-input" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">密码</label>
+              <input v-model="loginBody.password" type="password" placeholder="请输入密码" class="form-input" autocomplete="current-password" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">验证码</label>
+              <div class="captcha-row">
+                <input v-model="loginBody.verifyCode" type="text" placeholder="请输入验证码" class="form-input" />
+                <img :src="captchaUrl" alt="验证码" class="captcha-img" @click="refreshCaptcha" title="点击刷新" />
+              </div>
+            </div>
+            <button type="submit" :disabled="isLoggingIn" class="submit-btn">
+              {{ isLoggingIn ? '登录中...' : '登 录' }}
+            </button>
+          </form>
+          <div class="form-footer">
+            <span @click="handleRegister()">注册账号</span>
+            <span @click="forgotPassword">忘记密码</span>
+          </div>
+        </div>
+
+        <!-- 扫码登录 -->
+        <div v-if="activeTab === 'qrcode'" class="tab-content qr-content">
+          <div class="qr-box">
+            <div v-if="isWechatWorkLoading" class="qr-loading">
+              <div class="qr-spinner"></div>
+              <p>正在生成二维码...</p>
+            </div>
+            <div v-else-if="wechatWorkQrCode" class="qr-code-wrap">
+              <img :src="wechatWorkQrCode" alt="企业微信登录二维码" />
+              <button @click="refreshWechatWorkQrCode" class="qr-refresh" title="刷新二维码">&#x21bb;</button>
+            </div>
+            <div v-else class="qr-empty">
+              <p>无法加载二维码</p>
+              <button @click="getWechatWorkQrCodeData" class="qr-retry">重新获取</button>
+            </div>
+          </div>
+          <p class="qr-tip">请使用企业微信扫描上方二维码</p>
+        </div>
+
+        <div class="card-version">v1.0.0</div>
       </div>
-      
+    </div>
+
+    <!-- 企业微信绑定弹窗 -->
+    <el-dialog v-model="workBindDialogVisible" title="企业微信登录" width="420px" :close-on-click-modal="false">
+      <div class="text-center mb-4">
+        <img :src="pendingWorkUserInfo?.avatar || '/default-avatar.png'" alt="头像" class="w-16 h-16 rounded-full mx-auto mb-2 border-2 border-indigo-100" />
+        <p class="text-slate-700 font-semibold">{{ pendingWorkUserInfo?.name }}</p>
+        <p class="text-sm text-slate-500 mt-1">{{ pendingWorkUserInfo?.mobile }}</p>
+        <p class="text-sm text-slate-400 mt-3">该企业微信未绑定系统账号，请输入账号信息进行绑定</p>
+      </div>
       <el-form label-width="70px">
         <el-form-item label="用户名">
           <el-input v-model="workBindForm.username" placeholder="输入现有账号用户名" />
@@ -397,30 +428,21 @@ onUnmounted(() => {
         </el-form-item>
         <el-form-item>
           <div class="flex gap-2 w-full">
-            <el-button type="primary" @click="bindWorkToExistingAccount" class="flex-1">
-              确认绑定
-            </el-button>
-            <el-button @click="workBindDialogVisible = false" class="flex-1">
-              取消
-            </el-button>
+            <el-button type="primary" @click="bindWorkToExistingAccount" class="flex-1">确认绑定</el-button>
+            <el-button @click="workBindDialogVisible = false" class="flex-1">取消</el-button>
           </div>
         </el-form-item>
       </el-form>
-      
-      <div class="text-center text-sm text-gray-500 mt-2">
-        没有账号？请先通过传统方式注册账号后再进行绑定
-      </div>
+      <div class="text-center text-sm text-slate-400 mt-2">没有账号？请先注册后再进行绑定</div>
     </el-dialog>
     
-    <!-- 微信绑定弹窗 - 简化版（保持原有） -->
-    <el-dialog v-model="bindDialogVisible" title="微信登录" width="400px" :close-on-click-modal="false">
+    <!-- 微信绑定弹窗 -->
+    <el-dialog v-model="bindDialogVisible" title="微信登录" width="420px" :close-on-click-modal="false">
       <div class="text-center mb-4">
-        <img :src="pendingUserInfo?.headImgUrl" alt="微信头像" class="w-16 h-16 rounded-full mx-auto mb-2" />
-        <p class="text-gray-600">{{ pendingUserInfo?.nickname }}</p>
-        <p class="text-sm text-gray-500">该微信未绑定系统账号，请输入现有账号信息进行绑定：</p>
+        <img :src="pendingUserInfo?.headImgUrl" alt="微信头像" class="w-16 h-16 rounded-full mx-auto mb-2 border-2 border-indigo-100" />
+        <p class="text-slate-600">{{ pendingUserInfo?.nickname }}</p>
+        <p class="text-sm text-slate-400">该微信未绑定系统账号，请输入账号信息进行绑定</p>
       </div>
-      
-      <!-- 绑定现有账号表单 -->
       <el-form>
         <el-form-item label="用户名">
           <el-input v-model="bindForm.username" placeholder="输入现有账号用户名" />
@@ -430,114 +452,353 @@ onUnmounted(() => {
         </el-form-item>
         <el-form-item>
           <div class="flex gap-2 w-full">
-            <el-button type="primary" @click="bindToExistingAccount" class="flex-1">
-              确认绑定
-            </el-button>
-            <el-button @click="bindDialogVisible = false" class="flex-1">
-              取消
-            </el-button>
+            <el-button type="primary" @click="bindToExistingAccount" class="flex-1">确认绑定</el-button>
+            <el-button @click="bindDialogVisible = false" class="flex-1">取消</el-button>
           </div>
         </el-form-item>
       </el-form>
-      
-      <div class="text-center text-sm text-gray-500 mt-4">
-        没有账号？请先通过传统方式注册账号后再进行绑定
-      </div>
+      <div class="text-center text-sm text-slate-400 mt-4">没有账号？请先注册后再进行绑定</div>
     </el-dialog>
-    
-    <div class="fixed top-0 bottom-0 right-[12vw] flex flex-col mt-5 z-50 ">
-      <div class="font-['Microsoft_YaHei','微软雅黑',Arial,sans-serif] pl-2 mb-4 text-center tracking-[0.2em] text-[2.4rem] font-bold text-gray-800 w-[450px] max-w-[90vw] leading-snug mx-auto">
-        推免材料处理平台
-      </div>
-      <div class="relative bg-[rgba(80,70,70,0.7)] rounded-xl p-[2em] shadow-lg text-white w-[450px] max-w-[90vw] mx-auto">
-        <div class="flex items-center justify-center mb-4">
-          <h4 class="font-bold text-[24px] text-white m-0 ">统一身份认证</h4>
-        </div>
-        <div class="flex justify-center gap-4 mb-5">
-          <button
-          :class="[
-            'px-5 py-3 font-bold text-lg bg-transparent outline-none transition duration-200 rounded-none cursor-pointer',
-            activeTab === 'qrcode'
-              ? 'text-white border-b-2 border-white'
-              : 'text-gray-300 border-b-2 border-transparent'
-          ]"
-          @click="switchTab('qrcode')"
-        >扫码登录</button>
-        <button
-          :class="[
-            'px-5 py-3 font-bold text-lg bg-transparent outline-none transition duration-200 rounded-none cursor-pointer',
-            activeTab === 'account'
-              ? 'text-white border-b-2 border-white'
-              : 'text-gray-300 border-b-2 border-transparent'
-          ]"
-          @click="switchTab('account')"
-        >账号登录</button>
-        </div>
-        <div class=" transition-all">
-          <!-- ✅ 企业微信扫码登录 -->
-          <div v-if="activeTab === 'qrcode'" class="flex flex-col items-center justify-center">
-            <div class="p-3 rounded mb-3 bg-white">
-              <div class="w-52 h-52 flex items-center justify-center">
-                <!-- 企业微信二维码 -->
-                <div v-if="isWechatWorkLoading" class="flex flex-col items-center justify-center h-full">
-                  <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                  <p class="mt-2 text-gray-500 text-sm">正在生成二维码...</p>
-                </div>
-                <div v-else-if="wechatWorkQrCode" class="relative">
-                  <img :src="wechatWorkQrCode" alt="企业微信登录二维码" class="w-full h-full object-contain" />
-                  <!-- 刷新按钮 -->
-                  <button 
-                    @click="refreshWechatWorkQrCode"
-                    class="absolute top-1 right-1 bg-gray-100 hover:bg-gray-200 rounded-full p-1 text-gray-600 text-xs"
-                    title="刷新二维码"
-                  >
-                    ↻
-                  </button>
-                </div>
-                <div v-else class="flex flex-col items-center justify-center h-full text-gray-500">
-                  <p>无法加载二维码</p>
-                  <button @click="getWechatWorkQrCodeData" class="mt-2 text-blue-500 underline text-sm">
-                    重新获取
-                  </button>
-                </div>
-              </div>
-            </div>
-            <p class="text-white mb-2 font-bold">企业微信扫码登录</p>
-            <p class="text-gray-300 text-sm text-center">
-              请使用企业微信扫描上方二维码<br>
-              扫码后请在手机上确认登录
-            </p>
-          </div>
-          
-          <!-- 账号登录 -->
-          <div v-if="activeTab === 'account'">
-            <el-form class="mt-3 space-y-4" @submit.prevent="submitLogin" :model=loginBody>
-            <el-form-item >
-              <input v-model="loginBody.username" type="text" placeholder="请输入用户名" autofocus class="w-full h-12 px-4 rounded-lg bg-white text-black border border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition outline-none"/>
-            </el-form-item>
-            <el-form-item>
-              <input v-model="loginBody.password" type="password" placeholder="请输入密码" class="w-full h-12 px-4 rounded-lg bg-white text-black border border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition outline-none" autocomplete="current-password"/>
-            </el-form-item>
-            <el-form-item>
-              <div class="flex items-center gap-3 w-full">
-                <input v-model="loginBody.verifyCode" type="text" placeholder="请输入验证码" class="w-full h-12 px-4 rounded-lg bg-white text-black border border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition outline-none"/>
-                <img :src="captchaUrl" alt="验证码" class="w-full h-12 object-cover rounded cursor-pointer" @click="refreshCaptcha" title="点击刷新验证码" />
-              </div>
-            </el-form-item>
-            <el-form-item>
-              <button type="submit" :disabled="isLoggingIn" class="h-12 w-full flex flex-row items-center justify-center bg-blue-700 font-[700] text-[20px] py-3text-xl tracking-[0.1em] text-white rounded-lg transition cursor-pointer  hover:bg-[#4672F4] active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed" native-type="submit">{{ isLoggingIn ? '登录中...' : '登 录' }}</button>
-            </el-form-item>
-            <div class="flex justify-between mt-7 text-gray-300 text-base font-bold">
-              <span class="cursor-pointer" @click="handleRegister()">注册账号</span>
-              <span class="cursor-pointer" @click="forgotPassword">忘记密码</span>
-            </div>
-          </el-form>
-          </div>
-        </div>
-        <div class="text-center mt-4 text-sm text-white/60 font-normal">
-          版本号：<span>1.0.0</span>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
+
+<style scoped>
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 50%, #f1f5f9 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.login-brand {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  position: relative;
+  z-index: 1;
+}
+
+.brand-illustration {
+  max-width: 360px;
+  width: 80%;
+  object-fit: contain;
+  margin-bottom: 2rem;
+  opacity: 0.9;
+}
+
+.brand-title {
+  font-family: 'ZNtitle', 'Microsoft YaHei', sans-serif;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.brand-subtitle {
+  color: #64748b;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+}
+
+.login-card-wrap {
+  flex: 0 0 480px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  position: relative;
+  z-index: 2;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  border-radius: 24px;
+  padding: 2.5rem 2rem;
+  box-shadow:
+    0 4px 6px -1px rgba(15, 23, 42, 0.04),
+    0 20px 40px -4px rgba(79, 70, 229, 0.08);
+}
+
+.card-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 0.25rem;
+}
+
+.card-desc {
+  color: #94a3b8;
+  font-size: 0.875rem;
+  margin: 0 0 1.5rem;
+}
+
+.tab-bar {
+  display: flex;
+  gap: 0.25rem;
+  background: #f1f5f9;
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 1.5rem;
+}
+
+.tab-item {
+  flex: 1;
+  padding: 0.5rem 0;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  background: transparent;
+  color: #64748b;
+}
+
+.tab-item.active {
+  background: #fff;
+  color: #4f46e5;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.tab-content {
+  min-height: 280px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.form-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.form-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  color: #1e293b;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-input:focus {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.15);
+}
+
+.form-input::placeholder {
+  color: #cbd5e1;
+}
+
+.captcha-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.captcha-row .form-input {
+  flex: 1;
+}
+
+.captcha-img {
+  height: 44px;
+  width: 120px;
+  border-radius: 10px;
+  cursor: pointer;
+  object-fit: cover;
+  border: 1.5px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.submit-btn {
+  width: 100%;
+  height: 46px;
+  margin-top: 0.5rem;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.25s ease;
+}
+
+.submit-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(79, 70, 229, 0.3);
+}
+
+.submit-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.form-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.form-footer span {
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.form-footer span:hover {
+  color: #4f46e5;
+}
+
+.qr-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 0.5rem;
+}
+
+.qr-box {
+  width: 220px;
+  height: 220px;
+  background: #fff;
+  border-radius: 16px;
+  border: 1.5px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.qr-code-wrap {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.qr-code-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 12px;
+}
+
+.qr-refresh {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(241, 245, 249, 0.9);
+  color: #64748b;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.qr-refresh:hover {
+  background: #e2e8f0;
+}
+
+.qr-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  color: #94a3b8;
+  font-size: 0.8rem;
+}
+
+.qr-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #818cf8;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.qr-empty {
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.qr-retry {
+  margin-top: 0.5rem;
+  border: none;
+  background: none;
+  color: #4f46e5;
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-decoration: underline;
+}
+
+.qr-tip {
+  margin-top: 1rem;
+  color: #94a3b8;
+  font-size: 0.8rem;
+}
+
+.card-version {
+  text-align: center;
+  margin-top: 1.5rem;
+  font-size: 0.75rem;
+  color: #cbd5e1;
+}
+
+@media (max-width: 900px) {
+  .login-page {
+    flex-direction: column;
+  }
+  .login-brand {
+    padding: 2rem 1.5rem 1rem;
+  }
+  .brand-illustration {
+    max-width: 200px;
+    margin-bottom: 1rem;
+  }
+  .login-card-wrap {
+    flex: none;
+    padding: 0 1.5rem 2rem;
+  }
+}
+</style>

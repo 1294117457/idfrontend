@@ -772,7 +772,7 @@ const getConversionRangeText = (): string => {
   </script>
   
   <template>
-    <div class="min-h-screen flex flex-col gap-5 p-4">
+    <div class="page-container flex flex-col gap-5">
       <!-- AI 智能申请入口 -->
       <el-card>
         <div class="flex items-center justify-between">
@@ -920,7 +920,7 @@ const getConversionRangeText = (): string => {
           <button @click="aiPendingFile = null" class="text-red-400 hover:text-red-600">✕</button>
         </div>
       </el-dialog>
-      <el-card class="min-h-[100vh]">
+      <el-card>
         <el-tabs v-model="activeTab">
           <el-tab-pane
             v-for="field in scoreFieldConfigs"

@@ -403,16 +403,16 @@
     })
     </script>
     <template>
-      <div class="min-h-screen flex flex-col gap-5 p-4">
+      <div class="page-container flex flex-col gap-5">
         <!-- 加载状态 -->
         <div v-if="loading" class="flex justify-center items-center h-96">
           <el-icon class="is-loading" :size="50"><Loading /></el-icon>
         </div>
     
-        <el-card class="min-h-[100vh]" v-else>
+        <el-card v-else>
           <!-- 顶部分数统计 -->
           <div class="flex items-center justify-between mb-4">
-            <h4 class="text-[20px] font-bold text-gray-800">加分项申请</h4>
+            <h4 class="page-title">加分项申请</h4>
             <div>
               <el-tag type="primary" size="large">学术专长: {{ userStore.studentInfo?.specialtyScore || 0 }}/12分</el-tag>
               <el-tag type="success" size="large" class="ml-2">综合表现: {{ userStore.studentInfo?.comprehensiveScore || 0 }}/8分</el-tag>

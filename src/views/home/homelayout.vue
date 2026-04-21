@@ -1,21 +1,21 @@
 <template>
-  <div class="relative h-screen w-screen overflow-hidden">
-    <!-- 背景图片层 - 最底层 -->
-    <div class="fixed inset-0 bg-cover bg-center bg-no-repeat -z-10">
-      <img src="@/assets/images/bg2.jpg" alt="" class="w-full h-full object-cover">
+  <div class="app-shell">
+    <!-- Background -->
+    <div class="app-bg">
+      <img src="@/assets/images/bg2.jpg" alt="" class="app-bg-img" />
+      <div class="app-bg-overlay"></div>
     </div>
 
-    <!-- TopBar - 固定在顶部 -->
+    <!-- TopBar -->
     <TOPBAR :is-scrolled="isScrolled" />
 
-    <!-- 主内容区域 - 隐藏滚动条 -->
-    <div 
+    <!-- Main Content -->
+    <div
       ref="scrollContainer"
-      class="pt-[6rem] h-full overflow-auto scrollbar-hide"
+      class="app-main"
       @scroll="handleScroll"
     >
       <router-view />
-      <!-- AI 助手悬浮组件 -->
       <AiAssistant />
     </div>
   </div>
@@ -29,7 +29,6 @@ import AiAssistant from '@/views/ai-agent/index.vue'
 const scrollContainer = ref<HTMLElement | null>(null)
 const isScrolled = ref(false)
 
-// 滚动监听
 const handleScroll = (event: Event) => {
   const target = event.target as HTMLElement
   isScrolled.value = target.scrollTop > 50
@@ -37,14 +36,45 @@ const handleScroll = (event: Event) => {
 </script>
 
 <style scoped>
-/* ✅ 隐藏滚动条 - 支持所有浏览器 */
-.scrollbar-hide {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE 10+ */
+.app-shell {
+  position: relative;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
 }
 
-.scrollbar-hide::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Edge */
+.app-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+}
+
+.app-bg-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.app-bg-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(15, 23, 42, 0.2) 0%,
+    rgba(15, 23, 42, 0.35) 100%
+  );
+}
+
+.app-main {
+  padding-top: 4.5rem;
+  height: 100%;
+  overflow: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.app-main::-webkit-scrollbar {
+  display: none;
   width: 0;
   height: 0;
 }

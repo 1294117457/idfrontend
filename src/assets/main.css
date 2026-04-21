@@ -4,6 +4,13 @@
 
 @theme {
   --color-dark-blue: #102252;
+  --color-brand: #4f46e5;
+  --color-brand-light: #818cf8;
+  --color-brand-dark: #3730a3;
+  --color-accent: #f59e0b;
+  --color-accent-light: #fbbf24;
+  --color-surface: rgba(255, 255, 255, 0.72);
+  --color-surface-dark: rgba(15, 23, 42, 0.6);
 }
 
 @font-face {
@@ -18,4 +25,62 @@
   src: url('@/assets/font/ENtitle.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: #1e293b;
+  background: #f1f5f9;
+}
+
+::selection {
+  background: #818cf8;
+  color: #fff;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.el-card {
+  --el-card-border-radius: 16px;
+  --el-card-border-color: rgba(226, 232, 240, 0.6);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.el-dialog {
+  --el-dialog-border-radius: 16px;
+}
+
+.el-button--primary {
+  --el-button-bg-color: #4f46e5;
+  --el-button-border-color: #4f46e5;
+  --el-button-hover-bg-color: #4338ca;
+  --el-button-hover-border-color: #4338ca;
+  --el-button-active-bg-color: #3730a3;
+  --el-button-active-border-color: #3730a3;
 }
