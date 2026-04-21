@@ -228,9 +228,6 @@ const handleCommand = (command: string) => {
 
 const logout = () => {
   userStore.clearAll()
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
-  localStorage.removeItem('theme')
   ElMessage.success('已注销')
   router.push('/login')
 }

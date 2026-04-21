@@ -14,6 +14,6 @@ export default {
    children: [
     { path: 'index', component: HomeIndex, meta: { title: '首页', icon: SettingIcon, sort: 0 } }, // 首页路由
     ...childrenRoutes, // 自动加载的子路由
-    { path: '', redirect: 'home/index' }, // 修正重定向为字符串路径
+    { path: '', redirect: '/home/index' },
   ],
 }

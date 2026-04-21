@@ -1,8 +1,11 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-/* 引入中文标题字体 */
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-dark-blue: #102252;
+}
+
 @font-face {
   font-family: 'ZNtitle';
   src: url('@/assets/font/ZNtitle.ttf') format('truetype');
@@ -10,7 +13,6 @@
   font-style: normal;
 }
 
-/* 引入英文标题字体 */
 @font-face {
   font-family: 'ENtitle';
   src: url('@/assets/font/ENtitle.ttf') format('truetype');
