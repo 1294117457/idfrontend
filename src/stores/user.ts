@@ -4,7 +4,6 @@ import { STORAGE_KEYS } from '@common/constants/storage'
 import {
   getUserBasicInfo,
   getStudentBasicInfo,
-  getAvatarPreviewUrl,
   type UserBasicInfo,
   type StudentBasicInfo,
 } from '@/api/components/apiProfile'
@@ -14,7 +13,6 @@ export const useUserStore = defineStore('user', () => {
   const studentInfo = ref<StudentBasicInfo | null>(null)
 
   const avatarUrl = ref<string>('')
-  const avatarUrlExpireTime = ref<number>(0)
 
   const isLoggedIn = computed(() => !!userInfo.value)
   const hasToken = computed(() => !!localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN))
@@ -25,7 +23,7 @@ export const useUserStore = defineStore('user', () => {
       const response = await getUserBasicInfo()
       if (response.code === 200) {
         userInfo.value = response.data
-        await loadAvatarUrl()
+        loadAvatarUrl()
         return true
       } else {
         throw new Error(response.msg || '获取用户信息失败')
@@ -51,46 +49,9 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  const loadAvatarUrl = async (forceRefresh: boolean = false): Promise<string> => {
+  const loadAvatarUrl = (): string => {
     const avatar = userInfo.value?.avatar
-
-    if (!avatar) {
-      avatarUrl.value = ''
-      return ''
-    }
-
-    if (avatar.startsWith('http')) {
-      avatarUrl.value = avatar
-      avatarUrlExpireTime.value = Number.MAX_SAFE_INTEGER
-      return avatar
-    }
-
-    const now = Date.now()
-    const bufferTime = 5 * 60 * 1000
-    if (!forceRefresh && avatarUrl.value && avatarUrlExpireTime.value > now + bufferTime) {
-      return avatarUrl.value
-    }
-
-    const avatarId = parseInt(avatar)
-    if (isNaN(avatarId) || avatarId <= 0) {
-      avatarUrl.value = ''
-      return ''
-    }
-
-    try {
-      const expiryMinutes = 60
-      const response = await getAvatarPreviewUrl(avatarId, expiryMinutes)
-
-      if (response.code === 200) {
-        avatarUrl.value = response.data
-        avatarUrlExpireTime.value = now + expiryMinutes * 60 * 1000
-        return avatarUrl.value
-      }
-    } catch (error) {
-      console.error('获取头像预览失败:', error)
-      avatarUrl.value = ''
-    }
-
+    avatarUrl.value = avatar && avatar.startsWith('http') ? avatar : ''
     return avatarUrl.value
   }
 
@@ -105,7 +66,7 @@ export const useUserStore = defineStore('user', () => {
       userInfo.value = { ...userInfo.value, ...partialInfo }
 
       if (partialInfo.avatar !== undefined) {
-        loadAvatarUrl(true)
+        loadAvatarUrl()
       }
     }
   }
@@ -120,7 +81,6 @@ export const useUserStore = defineStore('user', () => {
     userInfo.value = null
     studentInfo.value = null
     avatarUrl.value = ''
-    avatarUrlExpireTime.value = 0
     localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN)
     localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN)
   }

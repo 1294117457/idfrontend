@@ -8,12 +8,16 @@
 <style>
 .page-container {
   min-height: calc(100vh - 5rem);
-  padding: 1.25rem clamp(1rem, 2.5vw, 2rem);
+  width: min(100%, 1440px);
+  margin: 0 auto;
+  padding: clamp(0.9rem, 2.5vw, 1.75rem);
 }
 
 .page-container-card {
   min-height: calc(100vh - 7rem);
-  padding: 1.25rem clamp(1rem, 2.5vw, 2rem);
+  width: min(100%, 1440px);
+  margin: 0 auto;
+  padding: clamp(0.9rem, 2.5vw, 1.75rem);
 }
 
 .page-title {
@@ -29,7 +33,19 @@
   content: '';
   width: 4px;
   height: 1.1em;
-  background: linear-gradient(180deg, #4f46e5, #818cf8);
+  background: linear-gradient(180deg, #2563eb, #60a5fa);
   border-radius: 2px;
+}
+
+@media (max-width: 640px) {
+  .page-container,
+  .page-container-card {
+    min-height: auto;
+    padding: 0.85rem;
+  }
+
+  .page-title {
+    font-size: 1rem;
+  }
 }
 </style>

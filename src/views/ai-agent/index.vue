@@ -3,7 +3,7 @@
       <!-- 悬浮按钮（可拖拽） -->
       <div
         ref="floatButton"
-        class="fixed z-[9999] cursor-pointer group"
+        class="ai-float-button fixed z-[9999] cursor-pointer group"
         :class="{ 'cursor-grabbing': isDragging }"
         :style="{ right: position.right + 'px', bottom: position.bottom + 'px' }"
         @mousedown="startDrag"
@@ -19,7 +19,7 @@
         </div>
   
         <div
-          class="w-13 h-13 rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform duration-300 overflow-hidden ring-2 ring-white/80"
+          class="w-14 h-14 rounded-full shadow-xl flex items-center justify-center hover:scale-105 transition-transform duration-200 overflow-hidden ring-2 ring-white/80"
           :class="{ 'scale-110 shadow-2xl': isDragging }"
           @click="handleClick"
         >
@@ -77,7 +77,7 @@
       <Transition name="slide-up">
         <div
           v-if="isOpen"
-          class="fixed z-[9998] w-96 h-[520px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200/60"
+          class="ai-assistant-panel fixed z-[9998] w-[min(24rem,calc(100vw-1.5rem))] h-[min(520px,calc(100dvh-6rem))] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200/60"
           :style="dialogPosition"
         >
           <!-- 头部 -->
@@ -288,8 +288,8 @@
   
   // 计算对话框位置（跟随悬浮按钮）
   const dialogPosition = computed(() => {
-    const dialogWidth = 384  // w-96 = 24rem = 384px
-    const dialogHeight = 500
+    const dialogWidth = typeof window !== 'undefined' ? Math.min(384, window.innerWidth - 24) : 384
+    const dialogHeight = typeof window !== 'undefined' ? Math.min(520, window.innerHeight - 96) : 520
     const buttonSize = 56
     const gap = 16
     
@@ -303,7 +303,7 @@
       if (right < 0) right = 8
       // 左边界
       if (right + dialogWidth > window.innerWidth) {
-        right = window.innerWidth - dialogWidth - 8
+        right = Math.max(8, window.innerWidth - dialogWidth - 8)
       }
       // 上边界
       if (bottom + dialogHeight > window.innerHeight) {
@@ -613,6 +613,26 @@
   .cursor-grabbing {
     cursor: grabbing !important;
     user-select: none;
+  }
+
+  .ai-assistant-panel {
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 96px);
+  }
+
+  @media (max-width: 640px) {
+    .ai-float-button {
+      right: max(14px, env(safe-area-inset-right)) !important;
+      bottom: max(14px, env(safe-area-inset-bottom)) !important;
+    }
+
+    .ai-assistant-panel {
+      right: 12px !important;
+      bottom: 84px !important;
+      width: calc(100vw - 24px) !important;
+      height: min(72dvh, 520px) !important;
+      border-radius: 18px;
+    }
   }
   </style>
 

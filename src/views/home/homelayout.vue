@@ -39,7 +39,8 @@ const handleScroll = (event: Event) => {
 .app-shell {
   position: relative;
   height: 100vh;
-  width: 100vw;
+  height: 100dvh;
+  width: 100%;
   overflow: hidden;
 }
 
@@ -53,29 +54,38 @@ const handleScroll = (event: Event) => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0.42;
 }
 
 .app-bg-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(15, 23, 42, 0.2) 0%,
-    rgba(15, 23, 42, 0.35) 100%
-  );
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.78) 0%, rgba(241, 245, 249, 0.92) 100%),
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.14), transparent 32rem);
 }
 
 .app-main {
   padding-top: 4.5rem;
   height: 100%;
   overflow: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.6) transparent;
 }
 
 .app-main::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
+  width: 6px;
+  height: 6px;
+}
+
+.app-main::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.6);
+  border-radius: 999px;
+}
+
+@media (max-width: 768px) {
+  .app-main {
+    padding-top: 4rem;
+  }
 }
 </style>

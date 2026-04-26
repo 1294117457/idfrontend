@@ -1,5 +1,4 @@
 import apiClient from '@/utils/http'
-const apiBaseUrl = import.meta.env.VITE_BASE_API
 
 // ========== 通用响应 ==========
 export interface ApiResponse<T = any> {
@@ -25,13 +24,6 @@ export interface UserBasicInfo {
 export interface UserBasicInfoUpdate {
   avatar?: string
   phone?: string
-}
-
-/** 头像上传返回 */
-export interface AvatarUploadResult {
-  fileId: number
-  originalName: string
-  fileSizeFormatted: string
 }
 
 // ✅ 用户 API（对应后端 /api/user/*）
@@ -66,13 +58,13 @@ export const uploadAvatar = async (file: File): Promise<ApiResponse<string>> => 
 }
 
 /**
- * 获取头像预览URL
+ * 获取头像预览URL（兼容旧版 fileId 模式，新版使用直链不需要此接口）
  */
 export const getAvatarPreviewUrl = async (
   fileId: number, 
   expiryMinutes: number = 60
 ): Promise<ApiResponse<string>> => {
-  const response = await apiClient.get(`${apiBaseUrl}/api/file/${fileId}/preview`, {
+  const response = await apiClient.get(`/api/file/${fileId}/preview`, {
     params: { expiryMinutes }
   })
   return response.data
@@ -84,7 +76,7 @@ export const getAvatarPreviewUrl = async (
 export interface StudentBasicInfo {
   fullName: string
   major: string
-  grade: number               // ✅ 年级（1-4：大一到大四）
+  grade: number               // 年级（1-5：大一到大五）
   graduationYear?: number
   gpa?: number
   academicScore: number
@@ -159,6 +151,7 @@ export interface UserInfoItem {
   userId: number
   username: string  // 即学校邮箱
   phone?: string
+  avatar?: string
 
   // 学生信息
   fullName?: string

@@ -4,7 +4,7 @@
     :class="{ 'shadow-md': isScrolled }"
     :style="headerStyle"
   >
-    <div class="mx-auto flex items-center justify-between transition-all duration-300 px-6" :style="{ height: barHeight }">
+    <div class="topbar-inner mx-auto flex items-center justify-between transition-all duration-300 px-4 md:px-6" :style="{ height: barHeight }">
       <!-- Logo -->
       <div class="flex items-center gap-3 flex-shrink-0">
         <div
@@ -17,7 +17,7 @@
       </div>
 
       <!-- Navigation Menu -->
-      <nav class="flex-1 flex items-center justify-center">
+      <nav class="nav-wrap flex-1 flex items-center justify-center min-w-0">
         <el-menu
           :default-active="activePath"
           mode="horizontal"
@@ -53,13 +53,13 @@
           <div class="flex items-center gap-2 outline-none transition-colors hover:opacity-80">
             <el-avatar
               :size="avatarSize"
-              :src="userAvatarUrl || defaultAvatar"
+              :src="userStore.avatarUrl || defaultAvatar"
               class="border-2 border-white/60"
             >
               <el-icon :size="16"><User /></el-icon>
             </el-avatar>
-            <span class="text-sm font-medium transition-all duration-300" :style="{ color: textColor }">
-              {{ userStore.userInfo?.fullName || userStore.userInfo?.username }}
+            <span class="user-name text-sm font-medium transition-all duration-300" :style="{ color: textColor }">
+              {{ userStore.studentInfo?.fullName || userStore.userInfo?.fullName || userStore.userInfo?.username }}
             </span>
           </div>
           <template #dropdown>
@@ -85,7 +85,6 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/profile'
-import { getAvatarPreviewUrl } from '@/api/components/apiProfile'
 import defaultAvatar from '@/assets/images/avatar.png'
 
 const props = defineProps<{
@@ -95,7 +94,6 @@ const props = defineProps<{
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
-const userAvatarUrl = ref('')
 const activePath = ref(route.path)
 
 const headerStyle = computed(() => {
@@ -107,36 +105,19 @@ const headerStyle = computed(() => {
     }
   }
   return {
-    background: 'transparent',
-    backdropFilter: 'none',
-    borderBottom: '1px solid transparent',
+    background: 'rgba(255, 255, 255, 0.7)',
+    backdropFilter: 'blur(12px)',
+    borderBottom: '1px solid rgba(226, 232, 240, 0.45)',
   }
 })
 
-const textColor = computed(() => props.isScrolled ? '#334155' : '#fff')
+const textColor = computed(() => props.isScrolled ? '#334155' : '#1e293b')
 const barHeight = computed(() => props.isScrolled ? '3.5rem' : '4.5rem')
 const logoSize = computed(() => props.isScrolled ? '1.4rem' : '1.8rem')
 const avatarSize = computed(() => props.isScrolled ? 28 : 32)
 
 const loadUserAvatar = async () => {
-  const avatar = userStore.userInfo?.avatar
-  if (!avatar) {
-    userAvatarUrl.value = ''
-    return
-  }
-  
-  const avatarId = parseInt(avatar)
-  if (!isNaN(avatarId) && avatarId > 0) {
-    try {
-      const response = await getAvatarPreviewUrl(avatarId, 60)
-      if (response.code === 200) {
-        userAvatarUrl.value = response.data
-      }
-    } catch (e) {
-      console.error('获取头像预览失败:', e)
-      userAvatarUrl.value = ''
-    }
-  }
+  await userStore.loadAvatarUrl()
 }
 
 watch(() => userStore.userInfo?.avatar, loadUserAvatar)
@@ -145,14 +126,14 @@ onMounted(async () => {
   if (!userStore.userInfo) {
     await userStore.fetchUserBasicInfo()
   }
-  loadUserAvatar()
+  await loadUserAvatar()
 })
 
 const homeRoute = router.options.routes.find((r) => r.path === '/home')
 const menuRoutes = homeRoute?.children?.filter((r) => !r.redirect && !r.meta?.hidden) || []
 
 const sortedMenuRoutes = computed(() =>
-  [...menuRoutes].sort((a, b) => (a.meta?.sort ?? Infinity) - (b.meta?.sort ?? Infinity))
+  [...menuRoutes].sort((a, b) => Number(a.meta?.sort ?? Infinity) - Number(b.meta?.sort ?? Infinity))
 )
 
 const hasChildren = (item: any) => {
@@ -195,9 +176,25 @@ const logout = () => {
 </script>
 
 <style scoped>
+.topbar-inner {
+  gap: clamp(0.75rem, 2vw, 1.5rem);
+  max-width: 1440px;
+}
+
+.nav-wrap {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.nav-wrap::-webkit-scrollbar {
+  display: none;
+}
+
 .nav-menu {
   --el-menu-border-color: transparent;
   --el-menu-hover-bg-color: transparent;
+  min-width: max-content;
 }
 
 .nav-menu :deep(.el-menu.el-menu--horizontal) {
@@ -213,7 +210,7 @@ const logout = () => {
   display: flex !important;
   justify-content: center !important;
   align-items: center !important;
-  padding: 0 18px !important;
+  padding: 0 clamp(10px, 1.6vw, 18px) !important;
 }
 
 .nav-menu :deep(.el-menu-item) {
@@ -227,13 +224,13 @@ const logout = () => {
 }
 
 .nav-menu :deep(.el-menu-item:hover) {
-  color: #4f46e5 !important;
-  border-bottom-color: #c7d2fe !important;
+  color: #2563eb !important;
+  border-bottom-color: #bfdbfe !important;
 }
 
 .nav-menu :deep(.el-menu-item.is-active) {
   /* color: #4f46e5 !important; */
-  border-bottom-color: #4f46e5 !important;
+  border-bottom-color: #2563eb !important;
   font-weight: 600;
   background-color: transparent !important;
 }
@@ -249,17 +246,17 @@ const logout = () => {
   align-items: center !important;
   justify-content: center !important;
   gap: 6px !important;
-  padding: 0 18px !important;
+  padding: 0 clamp(10px, 1.6vw, 18px) !important;
   width: 100% !important;
 }
 
 .nav-menu :deep(.el-sub-menu__title:hover) {
-  color: #4f46e5 !important;
+  color: #2563eb !important;
 }
 
 .nav-menu :deep(.el-sub-menu.is-active .el-sub-menu__title) {
-  color: #4f46e5 !important;
-  border-bottom-color: #4f46e5 !important;
+  color: #2563eb !important;
+  border-bottom-color: #2563eb !important;
   font-weight: 600;
 }
 
@@ -291,17 +288,38 @@ const logout = () => {
 
 .nav-menu :deep(.el-menu--popup .el-menu-item:hover) {
   background-color: #f1f5f9 !important;
-  color: #4f46e5 !important;
+  color: #2563eb !important;
 }
 
 .nav-menu :deep(.el-menu--popup .el-menu-item.is-active) {
-  background-color: #eef2ff !important;
-  color: #4f46e5 !important;
+  background-color: #eff6ff !important;
+  color: #2563eb !important;
   font-weight: 600;
 }
 .nav-menu {
   --el-menu-bg-color: transparent; /* 【新增这一行】强制覆盖菜单底色为透明 */
   --el-menu-border-color: transparent;
   --el-menu-hover-bg-color: transparent;
+}
+
+@media (max-width: 768px) {
+  .topbar-inner {
+    padding-inline: 0.85rem;
+    gap: 0.5rem;
+  }
+
+  .nav-wrap {
+    justify-content: flex-start;
+  }
+
+  .user-name {
+    display: none;
+  }
+
+  .nav-menu :deep(.el-menu-item),
+  .nav-menu :deep(.el-sub-menu__title) {
+    font-size: 0.82rem;
+    height: 2.5rem;
+  }
 }
 </style>

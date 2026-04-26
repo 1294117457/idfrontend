@@ -12,6 +12,12 @@ const router = useRouter()
 const userStore = useUserStore()
 const scoreFieldConfigs = ref<FieldConfig[]>([])
 
+const getGradeText = (grade?: number) => {
+  if (!grade) return '--'
+  const gradeMap: Record<number, string> = { 1: '大一', 2: '大二', 3: '大三', 4: '大四', 5: '大五' }
+  return gradeMap[grade] || `年级${grade}`
+}
+
 const getScoreByFieldKey = (key: string) => {
   const map: Record<string, string> = {
     specialty:     'specialtyScore',
@@ -46,7 +52,7 @@ const greeting = computed(() => {
 })
 
 const welcomeName = computed(() => {
-  return userStore.userInfo?.nickname || userStore.studentInfo?.fullName || userStore.userInfo?.username || '同学'
+  return userStore.studentInfo?.fullName || userStore.userInfo?.fullName || userStore.userInfo?.username || '同学'
 })
 
 const scoreText = computed(() => {
@@ -130,7 +136,7 @@ const jumpTo = (path: string) => {
           </div>
           <div class="stat-item">
             <span class="stat-label">年级</span>
-            <strong class="stat-value">{{ userStore.studentInfo?.grade ? `大${userStore.studentInfo.grade}` : '--' }}</strong>
+            <strong class="stat-value">{{ getGradeText(userStore.studentInfo?.grade) }}</strong>
           </div>
           <div class="stat-item">
             <span class="stat-label">状态</span>
@@ -169,7 +175,9 @@ const jumpTo = (path: string) => {
 .dashboard {
   min-height: calc(100vh - 5rem);
   padding: 1.5rem clamp(1rem, 3vw, 2.5rem) 2.5rem;
-  color: #f1f5f9;
+  color: #1e293b;
+  max-width: 1440px;
+  margin: 0 auto;
 }
 
 /* Hero */
@@ -177,16 +185,16 @@ const jumpTo = (path: string) => {
   display: grid;
   grid-template-columns: 1.3fr 0.7fr;
   gap: 1.25rem;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 22px;
   padding: clamp(1.25rem, 2vw, 2rem);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
 }
 
 .hero-greeting {
   font-size: 0.9rem;
-  color: #c7d2fe;
+  color: #2563eb;
   letter-spacing: 0.06em;
   margin-bottom: 0.5rem;
 }
@@ -196,13 +204,13 @@ const jumpTo = (path: string) => {
   font-size: clamp(1.8rem, 3.5vw, 2.8rem);
   line-height: 1.15;
   margin-bottom: 0.6rem;
-  color: #fff;
+  color: #0f172a;
 }
 
 .hero-desc {
   max-width: 600px;
   line-height: 1.8;
-  color: rgba(226, 232, 240, 0.9);
+  color: #475569;
   margin-bottom: 1.25rem;
   font-size: 0.95rem;
 }
@@ -217,39 +225,39 @@ const jumpTo = (path: string) => {
   padding: 0.65rem 1.5rem;
   border: none;
   border-radius: 10px;
-  background: linear-gradient(135deg, #f59e0b, #f97316);
+  background: linear-gradient(135deg, #2563eb, #0ea5e9);
   color: #fff;
   font-weight: 700;
   font-size: 0.9rem;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(249, 115, 22, 0.3);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.24);
 }
 
 .btn-ghost {
   padding: 0.65rem 1.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid #bfdbfe;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #f1f5f9;
+  background: #eff6ff;
+  color: #2563eb;
   font-weight: 600;
   font-size: 0.9rem;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.18s ease, border-color 0.18s ease;
 }
 
 .btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: #dbeafe;
 }
 
 /* Panel */
 .hero-right {
-  background: rgba(15, 23, 42, 0.25);
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: linear-gradient(135deg, #0f172a, #1e3a8a);
+  border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 16px;
   padding: 1rem 1.2rem;
 }
@@ -302,11 +310,11 @@ const jumpTo = (path: string) => {
   font-family: 'ZNtitle', 'Microsoft YaHei', sans-serif;
   font-size: clamp(1.1rem, 2vw, 1.5rem);
   letter-spacing: 0.02em;
-  color: #f1f5f9;
+  color: #0f172a;
 }
 
 .section-header span {
-  color: rgba(203, 213, 225, 0.8);
+  color: #64748b;
   font-size: 0.85rem;
 }
 
@@ -318,20 +326,19 @@ const jumpTo = (path: string) => {
 
 .feature-card {
   text-align: left;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(226, 232, 240, 0.9);
   border-radius: 16px;
   padding: 1.2rem;
-  background: rgba(255, 255, 255, 0.07);
-  backdrop-filter: blur(8px);
-  color: #f1f5f9;
+  background: rgba(255, 255, 255, 0.94);
+  color: #1e293b;
   cursor: pointer;
-  transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .feature-card:hover {
   transform: translateY(-3px);
-  border-color: rgba(255, 255, 255, 0.3);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.25);
+  border-color: #bfdbfe;
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.12);
 }
 
 .feature-icon {
@@ -349,7 +356,7 @@ const jumpTo = (path: string) => {
 .feature-card p {
   font-size: 0.85rem;
   line-height: 1.6;
-  color: rgba(226, 232, 240, 0.85);
+  color: #64748b;
   min-height: 3em;
 }
 
@@ -357,7 +364,7 @@ const jumpTo = (path: string) => {
   display: inline-block;
   margin-top: 0.5rem;
   font-size: 0.8rem;
-  color: #fbbf24;
+  color: #2563eb;
   font-weight: 500;
 }
 
@@ -385,5 +392,11 @@ const jumpTo = (path: string) => {
   .feature-grid { grid-template-columns: 1fr; }
   .stat-grid { grid-template-columns: 1fr; }
   .hero-title { font-size: 1.7rem; }
+  .hero { border-radius: 18px; }
+  .hero-actions { display: grid; grid-template-columns: 1fr; }
+  .btn-primary,
+  .btn-ghost { width: 100%; }
+  .section-header { align-items: flex-start; flex-direction: column; gap: 0.25rem; }
+  .feature-card p { min-height: auto; }
 }
 </style>

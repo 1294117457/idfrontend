@@ -13,7 +13,6 @@ import {
   updateStudentInfo,
   updateUserBasicInfo,
   uploadAvatar,
-  getAvatarPreviewUrl
 } from '@/api/components/apiProfile'
 import { useUserStore } from '@/stores/profile'
 
@@ -30,8 +29,6 @@ const userEditDialogVisible = ref(false)
 const updatingUser = ref(false)
 const uploadingAvatar = ref(false)
 const avatarPreviewUrl = ref('')
-const userAvatarUrl = ref('')
-const newAvatarFileId = ref<number | null>(null)
 
 const userEditForm = ref<UserBasicInfoUpdate>({
   avatar: '',
@@ -55,14 +52,10 @@ const editForm = ref<UpdateStudentItem>({
   grade: 1,
   graduationYear: undefined
 })
-// ✅ 年级文本转换（只支持1-4）
 const getGradeText = (grade?: number) => {
   if (!grade) return '-'
   const gradeMap: Record<number, string> = {
-    1: '大一',
-    2: '大二',
-    3: '大三',
-    4: '大四'
+    1: '大一', 2: '大二', 3: '大三', 4: '大四', 5: '大五'
   }
   return gradeMap[grade] || `年级${grade}`
 }
@@ -71,7 +64,8 @@ const gradeOptions = [
   { label: '大一', value: 1 },
   { label: '大二', value: 2 },
   { label: '大三', value: 3 },
-  { label: '大四', value: 4 }
+  { label: '大四', value: 4 },
+  { label: '大五（五年制）', value: 5 },
 ]
 // ==================== 计算属性 ====================
 const canSubmitBindForm = computed(() => {
@@ -86,6 +80,10 @@ const canSubmitEditForm = computed(() => {
 
 const hasStudentInfo = computed(() => {
   return !!userInfo.value?.fullName
+})
+
+const currentStudentInfo = computed(() => {
+  return hasStudentInfo.value ? userInfo.value : null
 })
 const fetchUserInfo = async () => {
   loading.value = true
@@ -102,33 +100,12 @@ const fetchUserInfo = async () => {
 }
 
 // ==================== ✅ 用户信息编辑功能 ====================
-const showUserEditDialog = async () => {
+const showUserEditDialog = () => {
   userEditForm.value = {
     avatar: userStore.userInfo?.avatar || '',
     phone: userStore.userInfo?.phone || ''
   }
-  
-  newAvatarFileId.value = null
-  
-  if (userStore.userInfo?.avatar) {
-    const avatar = userStore.userInfo.avatar
-    if (avatar.startsWith('http')) {
-      avatarPreviewUrl.value = avatar
-    } else {
-      const avatarId = parseInt(avatar)
-      if (!isNaN(avatarId) && avatarId > 0) {
-        try {
-          const response = await getAvatarPreviewUrl(avatarId, 60)
-          if (response.code === 200) {
-            avatarPreviewUrl.value = response.data
-          }
-        } catch (e) {
-          console.error('获取头像预览失败:', e)
-        }
-      }
-    }
-  }
-  
+  avatarPreviewUrl.value = userStore.avatarUrl || ''
   userEditDialogVisible.value = true
 }
 
@@ -153,11 +130,10 @@ const handleAvatarUpload = async (options: UploadRequestOptions) => {
     const response = await uploadAvatar(options.file as File)
 
     if (response.code === 200) {
-      const avatarUrl = response.data  // 后端返回直链 URL 字符串
-      newAvatarFileId.value = null
-      userEditForm.value.avatar = avatarUrl
-      avatarPreviewUrl.value = avatarUrl
-
+      const url = response.data
+      userEditForm.value.avatar = url
+      avatarPreviewUrl.value = url
+      userStore.updateUserInfo({ avatar: url })
       ElMessage.success('头像上传成功')
     } else {
       ElMessage.error(response.msg || '头像上传失败')
@@ -193,9 +169,6 @@ const handleUpdateUserInfo = async () => {
       })
       
       await userStore.fetchUserBasicInfo()
-      await loadUserAvatar()
-      
-      newAvatarFileId.value = null
     } else {
       ElMessage.error(response.msg || '更新失败')
     }
@@ -207,34 +180,8 @@ const handleUpdateUserInfo = async () => {
   }
 }
 
-const handleCancelEdit = async () => {
+const handleCancelEdit = () => {
   userEditDialogVisible.value = false
-  newAvatarFileId.value = null
-}
-
-const loadUserAvatar = async () => {
-  const avatar = userStore.userInfo?.avatar
-  if (!avatar) {
-    userAvatarUrl.value = ''
-    return
-  }
-  // 新版：直链 URL，直接使用
-  if (avatar.startsWith('http')) {
-    userAvatarUrl.value = avatar
-    return
-  }
-  // 旧版兼容：fileId 数字字符串
-  const avatarId = parseInt(avatar)
-  if (!isNaN(avatarId) && avatarId > 0) {
-    try {
-      const response = await getAvatarPreviewUrl(avatarId, 60)
-      if (response.code === 200) {
-        userAvatarUrl.value = response.data
-      }
-    } catch (e) {
-      console.error('获取头像预览失败:', e)
-    }
-  }
 }
 
 // ==================== 学生信息管理 ====================
@@ -261,6 +208,7 @@ const bindStudent = async () => {
       ElMessage.success('学生信息绑定成功')
       bindDialogVisible.value = false
       await fetchUserInfo()
+      await userStore.fetchStudentInfo()
     }
   } catch (error: any) {
     ElMessage.error(error.response?.data?.msg || '绑定失败')
@@ -272,8 +220,10 @@ const bindStudent = async () => {
 const showEditDialog = () => {
   if (userInfo.value) {
     editForm.value = {
-      fullName: userInfo.value.fullName,
-      major: userInfo.value.major,
+      fullName: userInfo.value.fullName || '',
+      major: userInfo.value.major || '',
+      grade: userInfo.value.grade || 1,
+      graduationYear: userInfo.value.graduationYear || new Date().getFullYear() + 1,
     }
   }
   editDialogVisible.value = true
@@ -292,6 +242,7 @@ const updateStudent = async () => {
       ElMessage.success('学生信息更新成功')
       editDialogVisible.value = false
       await fetchUserInfo()
+      await userStore.fetchStudentInfo()
     }
   } catch (error: any) {
     ElMessage.error(error.response?.data?.msg || '更新失败')
@@ -303,7 +254,6 @@ const updateStudent = async () => {
 // ==================== 生命周期 ====================
 onMounted(async () => {
   await userStore.fetchUserBasicInfo()
-  await loadUserAvatar()
   await fetchUserInfo()
 })
 </script>
@@ -328,7 +278,7 @@ onMounted(async () => {
           <div class="flex-shrink-0">
             <el-avatar 
               :size="80" 
-              :src="userAvatarUrl"
+              :src="userStore.avatarUrl"
               class="border-2 border-gray-200"
             >
               <el-icon :size="40"><User /></el-icon>
@@ -367,22 +317,22 @@ onMounted(async () => {
         </div>
         
         <!-- ✅ 有学生信息时显示 -->
-        <template v-if="hasStudentInfo">
+        <template v-if="currentStudentInfo">
           <el-descriptions :column="2" border class="mb-4">
-            <el-descriptions-item label="学生邮箱（账号）">{{ userInfo.username }}</el-descriptions-item>
-            <el-descriptions-item label="姓名">{{ userInfo.fullName }}</el-descriptions-item>
-            <el-descriptions-item label="专业">{{ userInfo.major }}</el-descriptions-item>
+            <el-descriptions-item label="学生邮箱（账号）">{{ currentStudentInfo.username }}</el-descriptions-item>
+            <el-descriptions-item label="姓名">{{ currentStudentInfo.fullName }}</el-descriptions-item>
+            <el-descriptions-item label="专业">{{ currentStudentInfo.major }}</el-descriptions-item>
             <el-descriptions-item label="年级">
-              <el-tag>{{ getGradeText(userInfo?.grade) }}</el-tag>
+              <el-tag>{{ getGradeText(currentStudentInfo.grade) }}</el-tag>
             </el-descriptions-item>
-            <el-descriptions-item label="毕业年份">{{ userInfo.graduationYear }}</el-descriptions-item>
-            <el-descriptions-item label="学业成绩">{{ userInfo.academicScore }}</el-descriptions-item>
-            <el-descriptions-item label="专业成绩">{{ userInfo.specialtyScore }}</el-descriptions-item>
-            <el-descriptions-item label="综合成绩">{{ userInfo.comprehensiveScore }}</el-descriptions-item>
-            <el-descriptions-item label="GPA">{{ userInfo.gpa || '未设置' }}</el-descriptions-item>
+            <el-descriptions-item label="毕业年份">{{ currentStudentInfo.graduationYear }}</el-descriptions-item>
+            <el-descriptions-item label="学业成绩">{{ currentStudentInfo.academicScore }}</el-descriptions-item>
+            <el-descriptions-item label="专业成绩">{{ currentStudentInfo.specialtyScore }}</el-descriptions-item>
+            <el-descriptions-item label="综合成绩">{{ currentStudentInfo.comprehensiveScore }}</el-descriptions-item>
+            <el-descriptions-item label="GPA">{{ currentStudentInfo.gpa || '未设置' }}</el-descriptions-item>
             <el-descriptions-item label="确认状态">
-              <el-tag :type="userInfo.isConfirmed ? 'success' : 'warning'">
-                {{ userInfo.isConfirmed ? '已确认' : '未确认' }}
+              <el-tag :type="currentStudentInfo.isConfirmed ? 'success' : 'warning'">
+                {{ currentStudentInfo.isConfirmed ? '已确认' : '未确认' }}
               </el-tag>
             </el-descriptions-item>
           </el-descriptions>
@@ -488,6 +438,27 @@ onMounted(async () => {
 
         <el-form-item label="专业" required>
           <el-input v-model="editForm.major" placeholder="请输入专业" maxlength="50" show-word-limit />
+        </el-form-item>
+
+        <el-form-item label="年级" required>
+          <el-select v-model="editForm.grade" placeholder="请选择年级" style="width: 100%">
+            <el-option
+              v-for="opt in gradeOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="毕业年份" required>
+          <el-input-number
+            v-model="editForm.graduationYear"
+            :min="2000"
+            :max="2035"
+            controls-position="right"
+            class="w-full"
+          />
         </el-form-item>
       </el-form>
 
