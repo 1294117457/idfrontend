@@ -10,9 +10,5 @@ export interface FieldConfig {
 }
 
 export const getScoreFieldConfigs = async () => {
-  const response = await apiClient.get<{ code: number; msg: string; data: FieldConfig[] }>(
-    '/api/field-config/list',
-    { params: { type: 'SCORE' } }
-  )
-  return response.data
+  return await apiClient.get('/api/field-config/list', { params: { type: 'SCORE' } })
 }

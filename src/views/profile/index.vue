@@ -88,12 +88,8 @@ const currentStudentInfo = computed(() => {
 const fetchUserInfo = async () => {
   loading.value = true
   try {
-    const response = await getUserInfo()
-    if (response.code === 200) {
-      userInfo.value = response.data
-    }
-  } catch (error: any) {
-    console.log('获取用户信息:', error.response?.data?.msg)
+    const res = await getUserInfo()
+    userInfo.value = res.data
   } finally {
     loading.value = false
   }
@@ -127,20 +123,11 @@ const beforeAvatarUpload = (file: File) => {
 const handleAvatarUpload = async (options: UploadRequestOptions) => {
   uploadingAvatar.value = true
   try {
-    const response = await uploadAvatar(options.file as File)
-
-    if (response.code === 200) {
-      const url = response.data
-      userEditForm.value.avatar = url
-      avatarPreviewUrl.value = url
-      userStore.updateUserInfo({ avatar: url })
-      ElMessage.success('头像上传成功')
-    } else {
-      ElMessage.error(response.msg || '头像上传失败')
-    }
-  } catch (error) {
-    console.error('头像上传失败:', error)
-    ElMessage.error('头像上传失败')
+    const res = await uploadAvatar(options.file as File)
+    const url = res.data
+    userEditForm.value.avatar = url
+    avatarPreviewUrl.value = url
+    userStore.updateUserInfo({ avatar: url })
   } finally {
     uploadingAvatar.value = false
   }
@@ -154,27 +141,16 @@ const handleUpdateUserInfo = async () => {
   
   updatingUser.value = true
   try {
-    const response = await updateUserBasicInfo({
+    await updateUserBasicInfo({
       avatar: userEditForm.value.avatar || undefined,
       phone: userEditForm.value.phone || undefined
     })
-    
-    if (response.code === 200) {
-      ElMessage.success('用户信息更新成功')
-      userEditDialogVisible.value = false
-      
-      userStore.updateUserInfo({
-        avatar: userEditForm.value.avatar,
-        phone: userEditForm.value.phone
-      })
-      
-      await userStore.fetchUserBasicInfo()
-    } else {
-      ElMessage.error(response.msg || '更新失败')
-    }
-  } catch (error: any) {
-    console.error('更新用户信息失败:', error)
-    ElMessage.error(error.response?.data?.msg || '更新失败')
+    userEditDialogVisible.value = false
+    userStore.updateUserInfo({
+      avatar: userEditForm.value.avatar,
+      phone: userEditForm.value.phone
+    })
+    await userStore.fetchUserBasicInfo()
   } finally {
     updatingUser.value = false
   }
@@ -203,15 +179,10 @@ const bindStudent = async () => {
 
   submitting.value = true
   try {
-    const response = await bindStudentInfo(bindForm.value)
-    if (response.code === 200) {
-      ElMessage.success('学生信息绑定成功')
-      bindDialogVisible.value = false
-      await fetchUserInfo()
-      await userStore.fetchStudentInfo()
-    }
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.msg || '绑定失败')
+    await bindStudentInfo(bindForm.value)
+    bindDialogVisible.value = false
+    await fetchUserInfo()
+    await userStore.fetchStudentInfo()
   } finally {
     submitting.value = false
   }
@@ -237,15 +208,10 @@ const updateStudent = async () => {
 
   submitting.value = true
   try {
-    const response = await updateStudentInfo(editForm.value)
-    if (response.code === 200) {
-      ElMessage.success('学生信息更新成功')
-      editDialogVisible.value = false
-      await fetchUserInfo()
-      await userStore.fetchStudentInfo()
-    }
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.msg || '更新失败')
+    await updateStudentInfo(editForm.value)
+    editDialogVisible.value = false
+    await fetchUserInfo()
+    await userStore.fetchStudentInfo()
   } finally {
     submitting.value = false
   }

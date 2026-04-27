@@ -1,4 +1,7 @@
 import apiClient from '@/utils/http'
+import axios from 'axios'
+import { STORAGE_KEYS } from '@common/constants/storage'
+
 const apiBaseUrl = import.meta.env.VITE_BASE_API
 
 // ========== 请求参数接口 ==========
@@ -71,56 +74,51 @@ export const uploadFile = async (file: File, metadata?: FileUploadDto): Promise<
     if (metadata.fileCategory) formData.append('fileCategory', metadata.fileCategory)
   }
 
-  const response = await apiClient.post(`${apiBaseUrl}/api/file/upload`, formData, {
+  return await apiClient.post(`${apiBaseUrl}/api/file/upload`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   })
-  return response.data
 }
 
 /** 查询文件列表(分页) */
 export const searchFiles = async (params: FileQueryDto): Promise<ApiResponse<PageResponse<FileMetadataVO>>> => {
-  const response = await apiClient.get(`${apiBaseUrl}/api/file/search`, { params })
-  return response.data
+  return await apiClient.get(`${apiBaseUrl}/api/file/search`, { params })
 }
 
 /** 删除文件 */
 export const deleteFile = async (fileId: number): Promise<ApiResponse<void>> => {
-  const response = await apiClient.delete(`${apiBaseUrl}/api/file/${fileId}`)
-  return response.data
+  return await apiClient.delete(`${apiBaseUrl}/api/file/${fileId}`)
 }
 
 /** 更新文件信息(重命名) */
 export const updateFile = async (fileId: number, updateDto: FileUpdateDto): Promise<ApiResponse<FileMetadataVO>> => {
-  const response = await apiClient.put(`${apiBaseUrl}/api/file/${fileId}`, updateDto)
-  return response.data
+  return await apiClient.put(`${apiBaseUrl}/api/file/${fileId}`, updateDto)
 }
 
 /** 获取预览URL */
 export const getPreviewUrl = async (fileId: number, expiryMinutes: number = 60): Promise<ApiResponse<string>> => {
-  const response = await apiClient.get(`${apiBaseUrl}/api/file/${fileId}/preview`, {
+  return await apiClient.get(`${apiBaseUrl}/api/file/${fileId}/preview`, {
     params: { expiryMinutes }
   })
-  return response.data
 }
 
-/** 下载文件 */
+/** 下载文件 - 使用原始 axios 绕过拦截器（blob 响应不兼容 JSON 拦截逻辑） */
 export const downloadFile = async (fileId: number): Promise<void> => {
-  const response = await apiClient.get(`${apiBaseUrl}/api/file/download/${fileId}`, {
-    responseType: 'blob'
+  const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN)
+  const response = await axios.get(`${apiBaseUrl}/api/file/download/${fileId}`, {
+    responseType: 'blob',
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
   })
-  
-  // 创建下载链接
+
   const blob = new Blob([response.data])
   const url = window.URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  
-  // 从响应头获取文件名
+
   const contentDisposition = response.headers['content-disposition']
   const fileName = contentDisposition 
     ? decodeURIComponent(contentDisposition.split('filename=')[1].replace(/"/g, ''))
     : 'download'
-  
+
   link.download = fileName
   document.body.appendChild(link)
   link.click()

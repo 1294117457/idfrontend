@@ -29,20 +29,14 @@ const processQueue = (error: any = null) => {
   failedQueue = []
 }
 
-const clearTokensAndRedirect = () => {
+const clearTokensAndRedirect = async () => {
   localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN)
   localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN)
-
   ElMessage.error('登录已过期，请重新登录')
-  setTimeout(() => {
-    window.location.href = '/login'
-  }, 1000)
+  const { default: router } = await import('@/router')
+  router.push('/login')
 }
 
-/**
- * Refresh token using raw axios to avoid interceptor loops.
- * Imported inline to break the circular dependency with api modules.
- */
 const doRefreshToken = async (token: string): Promise<TokenResponse> => {
   const response = await axios.post<{
     code: number
@@ -74,22 +68,24 @@ apiClient.interceptors.request.use(
 
 apiClient.interceptors.response.use(
   (response) => {
-    const code = response.data?.code
+    const res = response.data
 
-    if (code === 401) {
+    if (res.code === 401) {
       clearTokensAndRedirect()
-      const error: any = new Error('登录信息已过期，请重新登录')
-      error.response = { status: 401, data: response.data, config: response.config }
-      return Promise.reject(error)
+      return Promise.reject(res)
     }
 
-    if (code === 403) {
-      const error: any = new Error('Access Token过期')
-      error.response = { status: 403, data: response.data, config: response.config }
-      return Promise.reject(error)
+    if (res.code !== 200) {
+      ElMessage.error(res.msg || '请求失败')
+      return Promise.reject(res)
     }
 
-    return response
+    const method = response.config.method?.toLowerCase()
+    if (method !== 'get' && res.msg && res.msg !== '成功') {
+      ElMessage.success(res.msg)
+    }
+
+    return res
   },
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
@@ -138,6 +134,9 @@ apiClient.interceptors.response.use(
         return Promise.reject(refreshError)
       }
     }
+
+    const msg = (error.response?.data as any)?.msg || '网络异常，请稍后重试'
+    ElMessage.error(msg)
 
     return Promise.reject(error)
   },

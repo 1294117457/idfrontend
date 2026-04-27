@@ -1,27 +1,18 @@
 <template>
   <header
-    class="fixed top-0 left-0 right-0 z-10 transition-all duration-300"
-    :class="{ 'shadow-md': isScrolled }"
-    :style="headerStyle"
+    class="topbar"
+    :class="{ 'is-scrolled': isScrolled }"
   >
-    <div class="topbar-inner mx-auto flex items-center justify-between transition-all duration-300 px-4 md:px-6" :style="{ height: barHeight }">
+    <div class="topbar-inner">
       <!-- Logo -->
-      <div class="flex items-center gap-3 flex-shrink-0">
-        <div
-          class="font-bold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-500 transition-all duration-300"
-          :style="{ fontSize: logoSize }"
-          style="font-family: 'ZNtitle', sans-serif"
-        >
-          推免助手
-        </div>
-      </div>
+      <div class="topbar-logo">推免助手</div>
 
       <!-- Navigation Menu -->
-      <nav class="nav-wrap flex-1 flex items-center justify-center min-w-0">
+      <nav class="nav-wrap">
         <el-menu
           :default-active="activePath"
           mode="horizontal"
-          class="nav-menu bg-transparent border-none"
+          class="nav-menu"
           @select="handleSelect"
         >
           <template v-for="item in sortedMenuRoutes" :key="item.path">
@@ -48,17 +39,17 @@
       </nav>
 
       <!-- User Info -->
-      <div class="flex items-center flex-shrink-0">
+      <div class="topbar-user">
         <el-dropdown @command="handleCommand" class="cursor-pointer">
-          <div class="flex items-center gap-2 outline-none transition-colors hover:opacity-80">
+          <div class="user-trigger">
             <el-avatar
-              :size="avatarSize"
+              :size="30"
               :src="userStore.avatarUrl || defaultAvatar"
-              class="border-2 border-white/60"
+              class="user-avatar"
             >
               <el-icon :size="16"><User /></el-icon>
             </el-avatar>
-            <span class="user-name text-sm font-medium transition-all duration-300" :style="{ color: textColor }">
+            <span class="user-name">
               {{ userStore.studentInfo?.fullName || userStore.userInfo?.fullName || userStore.userInfo?.username }}
             </span>
           </div>
@@ -95,26 +86,6 @@ const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const activePath = ref(route.path)
-
-const headerStyle = computed(() => {
-  if (props.isScrolled) {
-    return {
-      background: 'rgba(255, 255, 255, 0.82)',
-      backdropFilter: 'blur(16px)',
-      borderBottom: '1px solid rgba(226, 232, 240, 0.5)',
-    }
-  }
-  return {
-    background: 'rgba(255, 255, 255, 0.7)',
-    backdropFilter: 'blur(12px)',
-    borderBottom: '1px solid rgba(226, 232, 240, 0.45)',
-  }
-})
-
-const textColor = computed(() => props.isScrolled ? '#334155' : '#1e293b')
-const barHeight = computed(() => props.isScrolled ? '3.5rem' : '4.5rem')
-const logoSize = computed(() => props.isScrolled ? '1.4rem' : '1.8rem')
-const avatarSize = computed(() => props.isScrolled ? 28 : 32)
 
 const loadUserAvatar = async () => {
   await userStore.loadAvatarUrl()
@@ -176,12 +147,105 @@ const logout = () => {
 </script>
 
 <style scoped>
-.topbar-inner {
-  gap: clamp(0.75rem, 2vw, 1.5rem);
-  max-width: 1440px;
+/* ==================== TopBar 容器 ==================== */
+.topbar {
+  --bar-height: 4rem;
+  --text-color: rgba(255, 255, 255, 0.9);
+  --text-color-hover: #fff;
+  --text-color-active: #fff;
+  --bar-bg: rgba(15, 23, 42, 0.15);
+  --bar-blur: 12px;
+  --bar-border: rgba(255, 255, 255, 0.1);
+  --bar-shadow: none;
+  --logo-size: 1.6rem;
+
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  background: var(--bar-bg);
+  backdrop-filter: blur(var(--bar-blur));
+  -webkit-backdrop-filter: blur(var(--bar-blur));
+  border-bottom: 1px solid var(--bar-border);
+  box-shadow: var(--bar-shadow);
+  transition: background 0.35s ease,
+              backdrop-filter 0.35s ease,
+              border-color 0.35s ease,
+              box-shadow 0.35s ease;
 }
 
+.topbar.is-scrolled {
+  --bar-height: 3.2rem;
+  --bar-bg: rgba(15, 23, 42, 0.55);
+  --bar-blur: 20px;
+  --bar-border: rgba(255, 255, 255, 0.08);
+  --bar-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+  --logo-size: 1.3rem;
+}
+
+/* ==================== 内部布局 ==================== */
+.topbar-inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(0.75rem, 2vw, 1.5rem);
+  padding: 0 1.5rem;
+  height: var(--bar-height);
+  transition: height 0.35s ease;
+}
+
+/* ==================== Logo ==================== */
+.topbar-logo {
+  flex-shrink: 0;
+  font-family: 'ZNtitle', sans-serif;
+  font-weight: 700;
+  font-size: var(--logo-size);
+  letter-spacing: 0.06em;
+  color: #fff;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.15);
+  transition: font-size 0.35s ease;
+}
+
+/* ==================== 用户区 ==================== */
+.topbar-user {
+  flex-shrink: 0;
+}
+
+.user-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  outline: none;
+  transition: opacity 0.2s;
+}
+
+.user-trigger:hover {
+  opacity: 0.85;
+}
+
+.user-avatar {
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: border-color 0.25s;
+}
+
+.user-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-color);
+  transition: color 0.3s;
+}
+
+/* ==================== 导航菜单 ==================== */
 .nav-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
@@ -192,17 +256,18 @@ const logout = () => {
 }
 
 .nav-menu {
+  --el-menu-bg-color: transparent;
   --el-menu-border-color: transparent;
   --el-menu-hover-bg-color: transparent;
+  background: transparent;
+  border: none;
   min-width: max-content;
 }
 
-.nav-menu :deep(.el-menu.el-menu--horizontal) {
-  border-bottom: none !important;
-}
-
+.nav-menu :deep(.el-menu.el-menu--horizontal),
 .nav-menu :deep(.el-menu) {
   border: none !important;
+  border-bottom: none !important;
 }
 
 .nav-menu :deep(.el-menu-item),
@@ -215,33 +280,33 @@ const logout = () => {
 
 .nav-menu :deep(.el-menu-item) {
   background-color: transparent !important;
-  color: v-bind(textColor) !important;
+  color: var(--text-color) !important;
   border-bottom: 2px solid transparent !important;
   font-size: 0.9rem;
   font-weight: 500;
-  transition: all 0.25s;
+  transition: color 0.25s, border-color 0.25s;
   height: 100%;
 }
 
 .nav-menu :deep(.el-menu-item:hover) {
-  color: #2563eb !important;
-  border-bottom-color: #bfdbfe !important;
+  color: var(--text-color-hover) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.5) !important;
 }
 
 .nav-menu :deep(.el-menu-item.is-active) {
-  /* color: #4f46e5 !important; */
-  border-bottom-color: #2563eb !important;
+  color: var(--text-color-active) !important;
+  border-bottom-color: #fff !important;
   font-weight: 600;
   background-color: transparent !important;
 }
 
 .nav-menu :deep(.el-sub-menu__title) {
   background-color: transparent !important;
-  color: v-bind(textColor) !important;
+  color: var(--text-color) !important;
   border-bottom: 2px solid transparent !important;
   font-size: 0.9rem;
   font-weight: 500;
-  transition: all 0.25s;
+  transition: color 0.25s, border-color 0.25s;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -251,12 +316,12 @@ const logout = () => {
 }
 
 .nav-menu :deep(.el-sub-menu__title:hover) {
-  color: #2563eb !important;
+  color: var(--text-color-hover) !important;
 }
 
 .nav-menu :deep(.el-sub-menu.is-active .el-sub-menu__title) {
-  color: #2563eb !important;
-  border-bottom-color: #2563eb !important;
+  color: var(--text-color-active) !important;
+  border-bottom-color: #fff !important;
   font-weight: 600;
 }
 
@@ -270,12 +335,13 @@ const logout = () => {
   color: inherit;
 }
 
+/* 下拉弹层 */
 .nav-menu :deep(.el-menu--popup) {
-  background-color: rgba(255, 255, 255, 0.95) !important;
-  backdrop-filter: blur(12px);
+  background-color: rgba(255, 255, 255, 0.96) !important;
+  backdrop-filter: blur(16px);
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.1);
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.12);
   padding: 4px;
 }
 
@@ -296,12 +362,8 @@ const logout = () => {
   color: #2563eb !important;
   font-weight: 600;
 }
-.nav-menu {
-  --el-menu-bg-color: transparent; /* 【新增这一行】强制覆盖菜单底色为透明 */
-  --el-menu-border-color: transparent;
-  --el-menu-hover-bg-color: transparent;
-}
 
+/* ==================== 响应式 ==================== */
 @media (max-width: 768px) {
   .topbar-inner {
     padding-inline: 0.85rem;

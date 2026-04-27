@@ -37,8 +37,7 @@ export interface ApiResponse<T = any> {
  * 获取启用的需求模板
  */
 export const getActiveTemplates = async (): Promise<ApiResponse<DemandTemplate[]>> => {
-  const response = await apiClient.get('/api/demand-template/active')
-  return response.data
+  return await apiClient.get('/api/demand-template/active')
 }
 
 /**
@@ -48,11 +47,10 @@ export const saveDemandApplicationWithFileIds = async (
   applications: DemandApplicationItem[],
   files: ProofFileItem[]
 ): Promise<ApiResponse<any>> => {
-  const response = await apiClient.post('/api/demand-application/submit', {
+  return await apiClient.post('/api/demand-application/submit', {
     applications: applications,
     proofFiles: files
   })
-  return response.data
 }
 
 /**
@@ -69,8 +67,7 @@ export const saveDemandApplication = async (
     formData.append('files', file)
   })
   
-  const response = await apiClient.post('/api/userinfo/saveDemandInfo', formData, {
+  return await apiClient.post('/api/userinfo/saveDemandInfo', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   })
-  return response.data
 }

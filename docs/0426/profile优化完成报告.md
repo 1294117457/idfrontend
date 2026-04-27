@@ -1,6 +1,6 @@
 # Profile 页面优化完成报告
 
-> 日期：2026-04-26 | 状态：代码已修改，编译通过
+> 日期：2026-04-26 | 状态：代码已修改，编译通过（需重新部署后端）
 
 ---
 
@@ -12,8 +12,9 @@
 |------|---------|
 | `UserInfoVO.java` | 新增 `private String avatar` 字段，使 `GET /api/user/complete-info` 返回头像 URL |
 | `UserConverter.java` | `toUserInfoVO()` 新增 `vo.setAvatar(userPO.getAvatar())`；`mapToStudentDataVO()` 中 `getYear` → `getInteger` |
-| `UserMapper.java` | `selectStudentsByCondition` 和 `selectUsersWithOptionalStudent` 中移除 `CAST(YEAR(...))` 包装，改为直接读 `u.grade` 和 `u.graduation_year` |
+| `UserMapper.java` | **所有 SELECT 查询**统一使用 `(YEAR(grade) - 2000) AS grade` 和 `YEAR(graduation_year) AS graduation_year`，包括 `selectById`、`selectByUsername`、`selectStudentsByCondition`、`selectUsersWithOptionalStudent` |
 | `UserService.java` | `buildUserInfoJson` 中 `"enrollmentYear"` 改为 `"grade"` |
+| `MinioUtil.java` | 新增 `@PostConstruct init()` 方法，应用启动时自动对 avatars bucket 设置公开读策略（解决已有 bucket 未设置策略导致 403 的问题） |
 
 ### 1.2 前端修改（idfrontend）
 
@@ -32,22 +33,21 @@
 | `views/student/index.vue` | `gradeOptions`、`getGradeLabel`、`getGradeTagType` 扩展到大五 |
 | `views/account-manage/index.vue` | `getGradeLabel` 扩展到大五 |
 
-### 1.4 需要你手动执行的数据库修改
+### 1.4 数据库（无需手动修改）
 
+**当前方案不需要修改数据库 DDL。** 代码层面已通过 SQL 表达式 `(YEAR(grade) - 2000)` 在所有 SELECT 查询中将 YEAR 类型的值（如 2002）转回年级数字（如 2）。写入时 MySQL 自动将 `2` 转为 `2002` 存储，读取时减回来，形成闭环。
+
+数据流：
+```
+前端选择 "大二" → grade=2 → SQL: SET grade=2 → MySQL YEAR 存为 2002
+→ SELECT (YEAR(grade)-2000) AS grade → Java 读出 grade=2 → 前端显示 "大二" ✅
+```
+
+如果后续想彻底清理，可以**可选地**执行以下 DDL（执行后需要把 SQL 中的 `YEAR()-2000` 改回 `grade`）：
 ```sql
--- 1. 修正已有数据（YEAR 类型的 2003 → TINYINT 的 3）
 UPDATE users SET grade = YEAR(grade) - 2000 WHERE grade IS NOT NULL;
-
--- 2. 修改 grade 列类型
-ALTER TABLE users MODIFY COLUMN grade TINYINT UNSIGNED DEFAULT NULL 
-  COMMENT '年级: 1=大一, 2=大二, 3=大三, 4=大四, 5=大五';
-
--- 3. 修改 graduation_year 列类型（避免 YEAR 的隐式转换陷阱）
-ALTER TABLE users MODIFY COLUMN graduation_year SMALLINT UNSIGNED DEFAULT NULL 
-  COMMENT '预计毕业年份';
-
--- 4. 验证
-SELECT id, full_name, grade, graduation_year FROM users WHERE full_name IS NOT NULL;
+ALTER TABLE users MODIFY COLUMN grade TINYINT UNSIGNED DEFAULT NULL COMMENT '年级: 1-5';
+ALTER TABLE users MODIFY COLUMN graduation_year SMALLINT UNSIGNED DEFAULT NULL COMMENT '毕业年份';
 ```
 
 ---

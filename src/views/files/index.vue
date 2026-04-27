@@ -173,8 +173,6 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import type { UploadRequestOptions } from 'element-plus'
 import { 
   type FileMetadataVO, 
   type FileQueryDto,
@@ -242,46 +240,24 @@ const handleReset = () => {
 
 // ==================== 加载文件列表 ====================
 const loadFiles = async () => {
+  loading.value = true
   try {
-    loading.value = true
-    
-    // ✅ 构建查询参数
     const params: FileQueryDto = {
-      fileCategory: 'PUBLIC',  // ✅ 固定查询 PUBLIC 文件
+      fileCategory: 'PUBLIC',
       pageNum: currentPage.value,
       pageSize: pageSize.value
     }
-    
-    if (queryForm.fileName) {
-      params.fileName = queryForm.fileName
+    if (queryForm.fileName) params.fileName = queryForm.fileName
+    if (queryForm.startTime) params.startTime = queryForm.startTime
+    if (queryForm.endTime) params.endTime = queryForm.endTime
+
+    const res = await searchFiles(params)
+    let list = res.data.list || []
+    if (queryForm.fileExtension) {
+      list = list.filter(file => file.fileExtension === queryForm.fileExtension)
     }
-    
-    if (queryForm.startTime) {
-      params.startTime = queryForm.startTime
-    }
-    
-    if (queryForm.endTime) {
-      params.endTime = queryForm.endTime
-    }
-    
-    const response = await searchFiles(params)
-    
-    if (response.code === 200) {
-      // ✅ 前端过滤文件类型（如果后端不支持扩展名筛选）
-      let list = response.data.list || []
-      
-      if (queryForm.fileExtension) {
-        list = list.filter(file => file.fileExtension === queryForm.fileExtension)
-      }
-      
-      fileList.value = list
-      totalItems.value = response.data.total || 0
-    } else {
-      ElMessage.error(response.msg || '查询失败')
-    }
-  } catch (error) {
-    ElMessage.error('查询失败')
-    console.error('查询错误:', error)
+    fileList.value = list
+    totalItems.value = res.data.total || 0
   } finally {
     loading.value = false
   }
@@ -289,25 +265,13 @@ const loadFiles = async () => {
 
 // ==================== 预览文件 ====================
 const handlePreview = async (row: FileMetadataVO) => {
+  previewUrl.value = ''
+  previewLoading.value = true
   try {
-    previewUrl.value = ''
-    previewLoading.value = true
-    
-    const response = await getPreviewUrl(row.id, 60)
-    
-    if (response.code === 200) {
-      previewUrl.value = response.data
-      setTimeout(() => {
-        previewDialogVisible.value = true
-        previewLoading.value = false
-      }, 100)
-    } else {
-      ElMessage.error(response.msg || '获取预览链接失败')
-      previewLoading.value = false
-    }
-  } catch (error) {
-    ElMessage.error('预览失败')
-    console.error('预览错误:', error)
+    const res = await getPreviewUrl(row.id, 60)
+    previewUrl.value = res.data
+    previewDialogVisible.value = true
+  } finally {
     previewLoading.value = false
   }
 }
@@ -319,13 +283,7 @@ const handlePreviewClose = () => {
 
 // ==================== 下载文件 ====================
 const handleDownload = async (row: FileMetadataVO) => {
-  try {
-    await downloadFile(row.id)
-    ElMessage.success('下载成功')
-  } catch (error) {
-    ElMessage.error('下载失败')
-    console.error('下载错误:', error)
-  }
+  await downloadFile(row.id)
 }
 
 
@@ -333,28 +291,12 @@ const handleDownload = async (row: FileMetadataVO) => {
 // ==================== 确认重命名 ====================
 const confirmRename = async () => {
   if (!currentRenameFile || !renameForm.newName.trim()) {
-    ElMessage.error('请输入新文件名')
     return
   }
-  
-  try {
-    const newFullName = renameForm.newName.trim() + currentRenameFile.fileExtension
-    
-    const response = await updateFile(currentRenameFile.id, {
-      originalName: newFullName
-    })
-    
-    if (response.code === 200) {
-      ElMessage.success('重命名成功')
-      renameDialogVisible.value = false
-      await loadFiles()
-    } else {
-      ElMessage.error(response.msg || '重命名失败')
-    }
-  } catch (error) {
-    ElMessage.error('重命名失败')
-    console.error('重命名错误:', error)
-  }
+  const newFullName = renameForm.newName.trim() + currentRenameFile.fileExtension
+  await updateFile(currentRenameFile.id, { originalName: newFullName })
+  renameDialogVisible.value = false
+  await loadFiles()
 }
 
 

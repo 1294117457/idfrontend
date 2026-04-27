@@ -35,7 +35,7 @@ onMounted(async () => {
   }
   try {
     const res = await getScoreFieldConfigs()
-    if (res.code === 200 && res.data.length > 0) {
+    if (res.data.length > 0) {
       scoreFieldConfigs.value = res.data
     }
   } catch {
@@ -111,7 +111,7 @@ const jumpTo = (path: string) => {
         <p class="hero-desc">保研材料系统已为你准备好今天的任务入口，先完善关键信息，再提交申请会更高效。</p>
         <div class="hero-actions">
           <button class="btn-primary" @click="jumpTo('/home/score/index')">开始加分申请</button>
-          <button class="btn-ghost" @click="jumpTo('/home/demand')">完善条件信息</button>
+          <!-- <button class="btn-ghost" @click="jumpTo('/home/demand')">完善条件信息</button> -->
         </div>
       </div>
 
@@ -185,7 +185,8 @@ const jumpTo = (path: string) => {
   display: grid;
   grid-template-columns: 1.3fr 0.7fr;
   gap: 1.25rem;
-  background: rgba(255, 255, 255, 0.92);
+  background: linear-gradient(135deg, rgba(255,255,255,0.92), rgba(238,242,255,0.85)),
+              url('@/assets/images/bg2.jpg') center/cover no-repeat;
   border: 1px solid rgba(226, 232, 240, 0.9);
   border-radius: 22px;
   padding: clamp(1.25rem, 2vw, 2rem);

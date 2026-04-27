@@ -32,16 +32,14 @@ export interface UserBasicInfoUpdate {
  * 获取用户基本信息
  */
 export const getUserBasicInfo = async (): Promise<ApiResponse<UserBasicInfo>> => {
-  const response = await apiClient.get('/api/user/profile')
-  return response.data
+  return await apiClient.get('/api/user/profile')
 }
 
 /**
  * 更新用户基本信息（昵称、头像、手机号）
  */
 export const updateUserBasicInfo = async (updateData: UserBasicInfoUpdate): Promise<ApiResponse<string>> => {
-  const response = await apiClient.put('/api/user/profile', updateData)
-  return response.data
+  return await apiClient.put('/api/user/profile', updateData)
 }
 
 /**
@@ -51,10 +49,9 @@ export const uploadAvatar = async (file: File): Promise<ApiResponse<string>> => 
   const formData = new FormData()
   formData.append('file', file)
 
-  const response = await apiClient.post('/api/file/avatar', formData, {
+  return await apiClient.post('/api/file/avatar', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   })
-  return response.data
 }
 
 /**
@@ -64,10 +61,9 @@ export const getAvatarPreviewUrl = async (
   fileId: number, 
   expiryMinutes: number = 60
 ): Promise<ApiResponse<string>> => {
-  const response = await apiClient.get(`/api/file/${fileId}/preview`, {
+  return await apiClient.get(`/api/file/${fileId}/preview`, {
     params: { expiryMinutes }
   })
-  return response.data
 }
 
 // ========== 学生信息相关（业务功能）==========
@@ -115,32 +111,28 @@ export interface BindItem {
  * 绑定学生信息（无需验证码，注册时已通过学校邮箱验证）
  */
 export const bindStudentInfo = async (studentData: StudentItem): Promise<ApiResponse<BindItem>> => {
-  const response = await apiClient.post('/api/user/student/bind', studentData)
-  return response.data
+  return await apiClient.post('/api/user/student/bind', studentData)
 }
 
 /**
  * 获取学生基本信息
  */
 export const getStudentBasicInfo = async (): Promise<ApiResponse<StudentBasicInfo>> => {
-  const response = await apiClient.get('/api/user/student/info')
-  return response.data
+  return await apiClient.get('/api/user/student/info')
 }
 
 /**
  * 更新学生信息
  */
 export const updateStudentInfo = async (updateData: UpdateStudentItem): Promise<ApiResponse<string>> => {
-  const response = await apiClient.put('/api/user/student/info', updateData)
-  return response.data
+  return await apiClient.put('/api/user/student/info', updateData)
 }
 
 /**
  * 确认学生信息
  */
 export const confirmStudentInfo = async (): Promise<ApiResponse<string>> => {
-  const response = await apiClient.post('/api/user/student/confirm')
-  return response.data
+  return await apiClient.post('/api/user/student/confirm')
 }
 
 // ========== 完整用户信息（包含学生信息）==========
@@ -171,6 +163,5 @@ export interface UserInfoItem {
  * 获取用户完整信息（包含学生信息）
  */
 export const getUserInfo = async (): Promise<ApiResponse<UserInfoItem>> => {
-  const response = await apiClient.get('/api/user/complete-info')
-  return response.data
+  return await apiClient.get('/api/user/complete-info')
 }

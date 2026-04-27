@@ -1,4 +1,6 @@
 import apiClient from '@/utils/http'
+import axios from 'axios'
+import { STORAGE_KEYS } from '@common/constants/storage'
 
 const apiBaseUrl = import.meta.env.VITE_BASE_API
 
@@ -44,16 +46,14 @@ export interface SubmitBonusApplicationDto {
  * ✅ 获取所有启用的模板
  */
 export const getAvailableTemplates = async () => {
-  const response = await apiClient.get('/api/bonus-template/list')
-  return response.data
+  return await apiClient.get('/api/bonus-template/list')
 }
 
 /**
  * ✅ 获取模板详情
  */
 export const getTemplateDetail = async (templateId: string) => {
-  const response = await apiClient.get(`/api/bonus-template/${templateId}`)
-  return response.data
+  return await apiClient.get(`/api/bonus-template/${templateId}`)
 }
 
 // ==================== ✅ 申请相关接口 ====================
@@ -62,34 +62,30 @@ export const getTemplateDetail = async (templateId: string) => {
  * ✅ 提交加分申请
  */
 export const submitBonusApplication = async (data: SubmitBonusApplicationDto) => {
-  const response = await apiClient.post('/api/application/submit', data, {
+  return await apiClient.post('/api/application/submit', data, {
     headers: { 'Content-Type': 'application/json' }
   })
-  return response.data
 }
 
 /**
  * ✅ 查询我的申请记录
  */
 export const getMyRecords = async () => {
-  const response = await apiClient.get('/api/application/my-records')
-  return response.data
+  return await apiClient.get('/api/application/my-records')
 }
 
 /**
  * 撤销申请（后端已禁止，保留兼容）
  */
 export const cancelBonusRecord = async (recordId: number) => {
-  const response = await apiClient.delete(`/api/application/cancel/${recordId}`)
-  return response.data
+  return await apiClient.delete(`/api/application/cancel/${recordId}`)
 }
 
 /**
  * 学生重新提交被驳回或已撤销的申请
  */
 export const resubmitApplication = async (recordId: number) => {
-  const response = await apiClient.post(`/api/application/resubmit/${recordId}`)
-  return response.data
+  return await apiClient.post(`/api/application/resubmit/${recordId}`)
 }
 
 /**
@@ -99,16 +95,14 @@ export const resubmitProof = async (
   proofId: number,
   data: { proofFileId: number; proofValue: number; remark?: string }
 ) => {
-  const response = await apiClient.put(`/api/proof/${proofId}/resubmit`, data)
-  return response.data
+  return await apiClient.put(`/api/proof/${proofId}/resubmit`, data)
 }
 
 /**
  * ✅ 计算学生总分
  */
 export const calculateScore = async () => {
-  const response = await apiClient.get('/api/student/calculate-score')
-  return response.data
+  return await apiClient.get('/api/student/calculate-score')
 }
 
 // ==================== ✅ 证明材料相关接口 ====================
@@ -117,28 +111,25 @@ export const calculateScore = async () => {
  * ✅ 获取申请的所有证明材料
  */
 export const getApplicationProofs = async (applicationId: number) => {
-  const response = await apiClient.get(`/api/proof/list/${applicationId}`)
-  return response.data
+  return await apiClient.get(`/api/proof/list/${applicationId}`)
 }
 
 /**
  * ✅ 审核证明材料 - 通过
  */
 export const approveProof = async (proofId: number, comment?: string) => {
-  const response = await apiClient.post(`/api/proof/${proofId}/approve`, null, {
+  return await apiClient.post(`/api/proof/${proofId}/approve`, null, {
     params: { comment }
   })
-  return response.data
 }
 
 /**
  * ✅ 审核证明材料 - 驳回
  */
 export const rejectProof = async (proofId: number, comment?: string) => {
-  const response = await apiClient.post(`/api/proof/${proofId}/reject`, null, {
+  return await apiClient.post(`/api/proof/${proofId}/reject`, null, {
     params: { comment }
   })
-  return response.data
 }
 
 // ==================== ✅ 文件相关接口 ====================
@@ -152,17 +143,13 @@ export const uploadProofFile = async (file: File): Promise<{ fileId: number; fil
   formData.append('fileCategory', 'PROOF')
   formData.append('filePurpose', '加分证明材料')
 
-  const response = await apiClient.post('/api/file/upload', formData, {
+  const res = await apiClient.post('/api/file/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   })
 
-  if (response.data.code === 200) {
-    return {
-      fileId: response.data.data.fileId,
-      fileName: response.data.data.originalName
-    }
-  } else {
-    throw new Error(response.data.message || '上传失败')
+  return {
+    fileId: res.data.fileId,
+    fileName: res.data.originalName
   }
 }
 
@@ -170,22 +157,20 @@ export const uploadProofFile = async (file: File): Promise<{ fileId: number; fil
  * ✅ 根据 fileId 获取预览 URL
  */
 export const getFilePreviewById = async (fileId: number, expiryMinutes: number = 60) => {
-  const response = await apiClient.get(`/api/file/${fileId}/preview`, {
+  const res = await apiClient.get(`/api/file/${fileId}/preview`, {
     params: { expiryMinutes }
   })
-  if (response.data.code === 200) {
-    return response.data.data
-  } else {
-    throw new Error(response.data.message || '获取预览链接失败')
-  }
+  return res.data
 }
 
 /**
  * ✅ 下载文件
  */
 export const downloadFileById = async (fileId: number, fileName: string) => {
-  const response = await apiClient.get(`/api/file/download/${fileId}`, {
-    responseType: 'blob'
+  const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN)
+  const response = await axios.get(`${apiBaseUrl}/api/file/download/${fileId}`, {
+    responseType: 'blob',
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
   })
 
   const url = window.URL.createObjectURL(new Blob([response.data]))
@@ -202,21 +187,19 @@ export const downloadFileById = async (fileId: number, fileName: string) => {
  * ✅ 兼容旧接口 - 根据 objectName 获取预览 URL
  */
 export const getFileUrl = async (fileUrl: string, type: number = 0) => {
-  const response = await apiClient.get('/api/file/preview-by-name', {
+  return await apiClient.get('/api/file/preview-by-name', {
     params: { 
       objectName: fileUrl,
       expiryMinutes: 60
     }
   })
-  return response.data
 }
 
 export const getFilePreviewUrl = async (fileUrl: string) => {
-  const response = await apiClient.get('/api/file/preview-by-name', {
+  return await apiClient.get('/api/file/preview-by-name', {
     params: { 
       objectName: fileUrl,
       expiryMinutes: 60
     }
   })
-  return response.data
 }

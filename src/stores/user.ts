@@ -20,31 +20,21 @@ export const useUserStore = defineStore('user', () => {
 
   const fetchUserBasicInfo = async (): Promise<boolean> => {
     try {
-      const response = await getUserBasicInfo()
-      if (response.code === 200) {
-        userInfo.value = response.data
-        loadAvatarUrl()
-        return true
-      } else {
-        throw new Error(response.msg || '获取用户信息失败')
-      }
-    } catch (error) {
-      console.error('获取用户信息失败:', error)
+      const res = await getUserBasicInfo()
+      userInfo.value = res.data
+      loadAvatarUrl()
+      return true
+    } catch {
       return false
     }
   }
 
   const fetchStudentInfo = async (): Promise<boolean> => {
     try {
-      const response = await getStudentBasicInfo()
-      if (response.code === 200) {
-        studentInfo.value = response.data
-        return true
-      } else {
-        throw new Error(response.msg || '获取学生信息失败')
-      }
-    } catch (error) {
-      console.error('获取学生信息失败:', error)
+      const res = await getStudentBasicInfo()
+      studentInfo.value = res.data
+      return true
+    } catch {
       return false
     }
   }

@@ -3,7 +3,7 @@
     <!-- Background -->
     <div class="app-bg">
       <img src="@/assets/images/bg2.jpg" alt="" class="app-bg-img" />
-      <div class="app-bg-overlay"></div>
+      <!-- <div class="app-bg-overlay"></div> -->
     </div>
 
     <!-- TopBar -->
@@ -54,7 +54,6 @@ const handleScroll = (event: Event) => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.42;
 }
 
 .app-bg-overlay {
