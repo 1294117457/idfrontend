@@ -58,7 +58,7 @@ export const uploadAvatar = async (file: File): Promise<ApiResponse<string>> => 
  * 获取头像预览URL（兼容旧版 fileId 模式，新版使用直链不需要此接口）
  */
 export const getAvatarPreviewUrl = async (
-  fileId: number, 
+  fileId: number,
   expiryMinutes: number = 60
 ): Promise<ApiResponse<string>> => {
   return await apiClient.get(`/api/file/${fileId}/preview`, {
@@ -70,6 +70,8 @@ export const getAvatarPreviewUrl = async (
 
 /** 学生基本信息 */
 export interface StudentBasicInfo {
+  studentId: string       // 学号
+  enrollmentYear: number  // 入学年份
   fullName: string
   major: string
   grade: number               // 年级（1-5：大一到大五）
@@ -83,20 +85,26 @@ export interface StudentBasicInfo {
   demandFiles?: string
 }
 
-/** 学生信息绑定/更新参数 */
+/** 学生信息绑定参数 */
 export interface StudentItem {
-  fullName: string
-  major: string
-  grade: number
-  graduationYear: number
-}
-
-/** 学生信息更新参数 */
-export interface UpdateStudentItem {
   fullName: string
   major: string
   grade?: number
   graduationYear?: number
+  enrollmentYear?: number
+  email?: string
+  code?: string
+}
+
+/** 学生信息更新参数 */
+export interface UpdateStudentItem {
+  fullName?: string
+  major?: string
+  grade?: number
+  graduationYear?: number
+  enrollmentYear?: number
+  email?: string
+  code?: string
 }
 
 /** 绑定返回 */
@@ -135,6 +143,13 @@ export const confirmStudentInfo = async (): Promise<ApiResponse<string>> => {
   return await apiClient.post('/api/user/student/confirm')
 }
 
+/**
+ * 发送学生邮箱验证码
+ */
+export const sendEmailCode = async (email: string): Promise<ApiResponse<string>> => {
+  return await apiClient.post('/api/user/student/sendEmailCode', { email })
+}
+
 // ========== 完整用户信息（包含学生信息）==========
 
 /** 用户完整信息 */
@@ -144,8 +159,12 @@ export interface UserInfoItem {
   username: string  // 即学校邮箱
   phone?: string
   avatar?: string
+  email?: string            // 邮箱
+  studentEmail?: string     // 学生邮箱
 
   // 学生信息
+  studentId?: string
+  enrollmentYear?: number   // 入学年份
   fullName?: string
   major?: string
   grade?: number
@@ -157,6 +176,13 @@ export interface UserInfoItem {
   isConfirmed?: boolean
   demandValue?: string
   demandFiles?: string
+
+  // 评优信息
+  foreignLanguageLevel?: string
+  disciplinaryViolations?: number
+  failedCourses?: number
+  specialSkillsRemark?: string
+  recommendationStatus?: string
 }
 
 /**

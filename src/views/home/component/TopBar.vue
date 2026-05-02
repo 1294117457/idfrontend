@@ -10,10 +10,10 @@
       <!-- Navigation Menu -->
       <nav class="nav-wrap">
         <el-menu
-          :default-active="activePath"
+          :default-active="activePath || undefined"
           mode="horizontal"
           class="nav-menu"
-          @select="handleSelect"
+          :router="false"
         >
           <template v-for="item in sortedMenuRoutes" :key="item.path">
             <el-sub-menu v-if="hasChildren(item)" :index="item.path">
@@ -22,9 +22,10 @@
                 <span>{{ item.meta?.title || item.path }}</span>
               </template>
               <el-menu-item
-                v-for="sub in getChildren(item)"
-                :key="sub.path"
-                :index="`${item.path}/${sub.path}`"
+                v-for="(sub, subIndex) in getChildren(item)"
+                :key="`${item.path}-${sub.path}-${subIndex}`"
+                :index="item.path"
+                @click="router.push(`/home/${item.path}/${sub.path}`)"
               >
                 {{ sub.meta?.title || sub.path }}
               </el-menu-item>
@@ -50,7 +51,7 @@
               <el-icon :size="16"><User /></el-icon>
             </el-avatar>
             <span class="user-name">
-              {{ userStore.studentInfo?.fullName || userStore.userInfo?.fullName || userStore.userInfo?.username }}
+              {{ displayName }}
             </span>
           </div>
           <template #dropdown>
@@ -60,7 +61,7 @@
                 修改账户信息
               </el-dropdown-item>
               <el-dropdown-item command="logout" divided>
-                <el-icon><Logout /></el-icon>
+                <el-icon><SwitchButton /></el-icon>
                 注销
               </el-dropdown-item>
             </el-dropdown-menu>
@@ -72,9 +73,10 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { User, SwitchButton } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/profile'
 import defaultAvatar from '@/assets/images/avatar.png'
 
@@ -84,21 +86,45 @@ const props = defineProps<{
 
 const router = useRouter()
 const route = useRoute()
+const routeRef = ref(route.path)
 const userStore = useUserStore()
-const activePath = ref(route.path)
+
+const isReady = ref(false)
+onMounted(async () => {
+  if (!userStore.userInfo) {
+    await userStore.fetchUserBasicInfo()
+  }
+  await loadUserAvatar()
+  await nextTick()
+  routeRef.value = route.path
+  isReady.value = true
+})
+
+watch(() => route.path, (path) => {
+  routeRef.value = path
+})
+
+const activePath = computed(() => {
+  const path = routeRef.value
+  if (!isReady.value) return ''
+  const relative = path.replace('/home/', '')
+  const segments = relative.split('/')
+  if (segments.length >= 2) {
+    return segments[0]
+  }
+  return relative || 'index'
+})
+
+const displayName = computed(() => {
+  const fullName = userStore.studentInfo?.fullName || userStore.userInfo?.fullName
+  return fullName || userStore.userInfo?.username || ''
+})
 
 const loadUserAvatar = async () => {
   await userStore.loadAvatarUrl()
 }
 
 watch(() => userStore.userInfo?.avatar, loadUserAvatar)
-
-onMounted(async () => {
-  if (!userStore.userInfo) {
-    await userStore.fetchUserBasicInfo()
-  }
-  await loadUserAvatar()
-})
 
 const homeRoute = router.options.routes.find((r) => r.path === '/home')
 const menuRoutes = homeRoute?.children?.filter((r) => !r.redirect && !r.meta?.hidden) || []
@@ -118,17 +144,8 @@ const getChildren = (item: any) => {
     .sort((a: any, b: any) => (a.meta?.sort ?? Infinity) - (b.meta?.sort ?? Infinity))
 }
 
-watch(
-  () => route.path,
-  (newPath) => {
-    activePath.value = newPath.replace('/home/', '')
-  },
-  { immediate: true }
-)
-
 const handleSelect = (path: string) => {
-  router.push(`/home/${path}`)
-  activePath.value = path
+  router.push(path.startsWith('/home/') ? path : `/home/${path}`)
 }
 
 const handleCommand = (command: string) => {

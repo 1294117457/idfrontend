@@ -453,7 +453,7 @@ const getConversionRangeText = (): string => {
       conversionInput.value = 0
       convertedScore.value = 0
     } else {
-      ElMessage.error(response.message || '提交失败')
+      ElMessage.error(response.msg || '提交失败')
     }
   } catch (error: any) {
     console.error('提交失败:', error)

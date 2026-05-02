@@ -38,7 +38,7 @@ const userEditForm = ref<UserBasicInfoUpdate>({
 const bindDialogVisible = ref(false)
 
 // ✅ 绑定表单
-const bindForm = ref<StudentItem>({
+const bindForm = ref({
   fullName: '',
   major: '',
   grade: 1,
@@ -49,8 +49,7 @@ const bindForm = ref<StudentItem>({
 const editForm = ref<UpdateStudentItem>({
   fullName: '',
   major: '',
-  grade: 1,
-  graduationYear: undefined
+  grade: 1
 })
 const getGradeText = (grade?: number) => {
   if (!grade) return '-'
@@ -74,8 +73,8 @@ const canSubmitBindForm = computed(() => {
 })
 
 const canSubmitEditForm = computed(() => {
-  return editForm.value.fullName.trim() !== '' &&
-         editForm.value.major.trim() !== ''
+  return (editForm.value.fullName?.trim() || '') !== '' &&
+         (editForm.value.major?.trim() || '') !== ''
 })
 
 const hasStudentInfo = computed(() => {
@@ -179,7 +178,7 @@ const bindStudent = async () => {
 
   submitting.value = true
   try {
-    await bindStudentInfo(bindForm.value)
+    await bindStudentInfo(bindForm.value as StudentItem)
     bindDialogVisible.value = false
     await fetchUserInfo()
     await userStore.fetchStudentInfo()

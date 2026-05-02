@@ -173,6 +173,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import { 
   type FileMetadataVO, 
   type FileQueryDto,
@@ -293,10 +294,16 @@ const confirmRename = async () => {
   if (!currentRenameFile || !renameForm.newName.trim()) {
     return
   }
-  const newFullName = renameForm.newName.trim() + currentRenameFile.fileExtension
-  await updateFile(currentRenameFile.id, { originalName: newFullName })
-  renameDialogVisible.value = false
-  await loadFiles()
+  const file = currentRenameFile as FileMetadataVO
+  const newFullName = renameForm.newName.trim() + file.fileExtension
+  const response = await updateFile(file.id, { originalName: newFullName })
+  if (response.code === 200) {
+    ElMessage.success('重命名成功')
+    renameDialogVisible.value = false
+    await loadFiles()
+  } else {
+    ElMessage.error(response.msg || '重命名失败')
+  }
 }
 
 

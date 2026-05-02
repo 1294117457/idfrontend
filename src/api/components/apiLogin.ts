@@ -3,6 +3,12 @@ import axios from 'axios'
 
 const apiBaseUrl = import.meta.env.VITE_BASE_API
 
+export interface ApiResponse<T = any> {
+  code: number
+  msg: string
+  data: T
+}
+
 export interface LoginDto {
   username: string;
   password: string;
@@ -63,17 +69,17 @@ export const loginPost = async (logdto: LoginDto): Promise<LoginResType> => {
 
 // 注册
 export interface RegisterItem {
-  username: string;  // 学校邮箱，即注册账号（xmu.edu.cn 结尾）
-  password: string;
-  code: string;
+  username: string  // 学校邮箱，即注册账号（xmu.edu.cn 结尾）
+  password: string
+  code: string
 }
 
-export const regesterRequest = async (reItem: RegisterItem) => {
+export const regesterRequest = async (reItem: RegisterItem): Promise<ApiResponse<string>> => {
   return await apiClient.post('/api/authserver/register', reItem)
 }
 
 // 发送注册验证码（发送到 username 邮箱）
-export const sentEmailCode = async (email: string) => {
+export const sentEmailCode = async (email: string): Promise<ApiResponse<string>> => {
   return await apiClient.post('/api/authserver/sendEmailCode', { email })
 }
 
@@ -85,11 +91,11 @@ export interface ForgotPasswordRequest {
   confirmPassword: string
 }
 
-export const sendResetCode = async (email: string) => {
+export const sendResetCode = async (email: string): Promise<ApiResponse<string>> => {
   return await apiClient.post('/api/authserver/sendResetCode', { email })
 }
 
-export const resetPassword = async (data: ForgotPasswordRequest) => {
+export const resetPassword = async (data: ForgotPasswordRequest): Promise<ApiResponse<string>> => {
   return await apiClient.post('/api/authserver/reset-password', data)
 }
 

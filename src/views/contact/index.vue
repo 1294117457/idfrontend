@@ -1,12 +1,10 @@
 <script setup lang="ts">
     import { ref, reactive, onMounted, computed } from 'vue'
     import { ElMessage } from 'element-plus'
-    // ✅ 移除 UploadUserFile 类型，使用新的 ProofFileItem
     import {
       getAvailableTemplates,
       getTemplateDetail,
       submitBonusApplication,
-      type SubmitBonusApplicationDto,
       type ProofFileItem
     } from '@/api/components/apiScore'
     import { useUserStore } from '@/stores/profile'
@@ -315,46 +313,48 @@
           return
         }
     
-        // ✅ 构建提交数据
-        const submitData: SubmitBonusApplicationDto = {
-          studentId: userStore.studentInfo!.studentId,
-          studentName: userStore.studentInfo!.fullName,
-          major: userStore.studentInfo!.major,
-          enrollmentYear: userStore.studentInfo!.enrollmentYear,
+        // 构建提交数据
+        const submitData: Record<string, any> = {
+          studentId: userStore.studentInfo!.studentId || '',
+          studentName: userStore.studentInfo!.fullName || '',
+          major: userStore.studentInfo!.major || '',
+          enrollmentYear: userStore.studentInfo!.grade
+            ? new Date().getFullYear() - userStore.studentInfo!.grade + 1
+            : new Date().getFullYear(),
           templateName: selectedTemplate.value.templateName,
+          templateType: hasConversionRule.value ? 'TRANSFORM' : 'CONDITION',
           scoreType: selectedTemplate.value.scoreType,
-          calculatedScore: 0,
+          applyScore: finalCalculatedScore.value,
           reviewCount: selectedTemplate.value.reviewCount || 1,
-          ruleValues: {},
-          proofFiles: proofFiles.value,  // ✅ 直接使用 [{fileId, fileName}] 格式
-          remark: applyForm.remark
+          remark: applyForm.remark,
+          proofItems: proofFiles.value.map(item => ({
+            proofFileId: item.fileId,
+            proofValue: 0,
+            reviewCount: selectedTemplate.value.reviewCount || 1,
+            remark: ''
+          }))
         }
-    
+
         // 换算规则提交
         if (hasConversionRule.value) {
           if (!matchedConversionRule.value) {
             ElMessage.warning('请输入有效的分数以匹配换算规则')
             return
           }
-          
-          submitData.calculatedScore = convertedScore.value
-          submitData.ruleValues = {
-            '输入分数': conversionInput.value,
-            '匹配规则': matchedConversionRule.value.ruleName
-          }
-        } 
+          submitData.applyInput = conversionInput.value
+        }
         // 普通规则提交
         else {
           const missingAttrs = templateAttributes.value.filter(attr => {
             const value = applyForm.attributeValues[attr]
             return value === undefined || value === null || value === ''
           })
-    
+
           if (missingAttrs.length > 0) {
             ElMessage.warning(`请填写: ${missingAttrs.join(', ')}`)
             return
           }
-    
+
           if (!matchedNormalRule.value && !hasTimeRule.value) {
             calculateMatchedScore()
             if (!matchedNormalRule.value) {
@@ -362,13 +362,10 @@
               return
             }
           }
-    
-          submitData.calculatedScore = finalCalculatedScore.value
-          submitData.ruleValues = { ...applyForm.attributeValues }
         }
-    
+
         submitting.value = true
-        const response = await submitBonusApplication(submitData)
+        const response = await submitBonusApplication(submitData as any)
         
         if (response.code === 200) {
           ElMessage.success('提交成功!')

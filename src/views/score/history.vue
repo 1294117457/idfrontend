@@ -273,7 +273,7 @@
       if (response.code === 200) {
         myRecords.value = response.data || []
       } else {
-        ElMessage.error(response.message || '加载失败')
+        ElMessage.error(response.msg || '加载失败')
       }
     } catch (error) {
       console.error('加载记录失败:', error)
@@ -299,7 +299,7 @@
       if (response.code === 200) {
         proofsList.value = response.data.proofs || []
       } else {
-        ElMessage.error(response.message || '加载证明材料失败')
+        ElMessage.error(response.msg || '加载证明材料失败')
       }
     } catch (error) {
       console.error('加载证明材料失败:', error)
@@ -312,9 +312,9 @@
   // ✅ 预览证明材料
   const handlePreviewProof = async (fileId: number) => {
     try {
-      const urlData = await getFilePreviewById(fileId, 60)
-      if (urlData) {
-        window.open(urlData, '_blank')
+      const response = await getFilePreviewById(fileId, 60)
+      if (response.code === 200 && response.data) {
+        window.open(response.data, '_blank')
       }
     } catch (error) {
       console.error('预览失败:', error)
@@ -344,7 +344,7 @@
         ElMessage.success('已重新提交，等待审核')
         await loadMyRecords()
       } else {
-        ElMessage.error(response.message || '提交失败')
+        ElMessage.error(response.msg || '提交失败')
       }
     } catch (error: any) {
       if (error !== 'cancel') {
@@ -375,7 +375,7 @@
         ElMessage.success('重新提交成功，等待审核')
         await loadProofs(selectedRecord.value.id)
       } else {
-        ElMessage.error(response.message || '提交失败')
+        ElMessage.error(response.msg || '提交失败')
       }
     } catch (error: any) {
       if (error !== 'cancel') {

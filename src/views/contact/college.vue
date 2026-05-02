@@ -55,7 +55,7 @@
               <el-button 
                 type="danger" 
                 size="small" 
-                @click="handleCancelRecord(row.id, row.status)"
+                @click="handleCancelRecord(Number(row.id), row.status)"
                 :disabled="row.status === 1"
               >
                 撤销
@@ -201,7 +201,7 @@
         return
       }
       
-      const response = await getMyRecords(userStore.studentInfo.studentId)
+      const response = await getMyRecords()
       
       if (response.code === 200) {
         myRecords.value = response.data || []
@@ -248,7 +248,7 @@
   }
   
   // ==================== 撤销申请 ====================
-  const handleCancelRecord = async (recordId: string, status: number) => {
+  const handleCancelRecord = async (recordId: number, status: number) => {
     if (status === 1) {
       ElMessage.warning('已通过审核的记录不能取消')
       return
@@ -261,7 +261,7 @@
         type: 'warning',
       })
       
-      const response = await cancelBonusRecord(recordId.toString())
+      const response = await cancelBonusRecord(recordId)
       
       if (response.code === 200) {
         ElMessage.success('取消成功')

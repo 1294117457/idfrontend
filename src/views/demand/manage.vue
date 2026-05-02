@@ -73,8 +73,8 @@
           <el-descriptions-item label="违纪次数">{{ userInfo.disciplinaryViolations }}</el-descriptions-item>
           <el-descriptions-item label="挂科次数">{{ userInfo.failedCourses }}</el-descriptions-item>
           <el-descriptions-item label="推荐状态">
-            <el-tag :type="getStatusType(userInfo.recommendationStatus)">
-              {{ getStatusText(userInfo.recommendationStatus) }}
+            <el-tag :type="getStatusType(userInfo.recommendationStatus || '')">
+              {{ getStatusText(userInfo.recommendationStatus || '') }}
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="特长备注" :span="2">
@@ -88,7 +88,7 @@
     <el-dialog v-model="editDialogVisible" title="修改学生信息" width="600px">
       <el-form :model="editForm" label-width="120px">
         <el-form-item label="学号">
-          <el-input v-model="editForm.email.split('@')[0]" placeholder="学号将从邮箱自动提取" :disabled="true"></el-input>
+          <el-input :model-value="editForm.email?.split('@')[0] || ''" placeholder="学号将从邮箱自动提取" disabled></el-input>
         </el-form-item>
         <el-form-item label="学生邮箱" >
           <div class="flex gap-2 w-full">
@@ -222,7 +222,7 @@ const sendCode = async () => {
   }
   
   try {
-    const response = await sendEmailCode(bindForm.value.email)
+    const response = await sendEmailCode(bindForm.value.email as string)
     if (response.code === 200) {
       ElMessage.success('验证码已发送')
       // 开始倒计时
@@ -251,7 +251,7 @@ const sendEditCode = async () => {
   }
   
   try {
-    const response = await sendEmailCode(editForm.value.email)
+    const response = await sendEmailCode(editForm.value.email as string)
     if (response.code === 200) {
       ElMessage.success('验证码已发送')
       // 开始倒计时
@@ -293,10 +293,10 @@ const bindStudent = async () => {
 const showEditDialog = () => {
   if (userInfo.value) {
     editForm.value = {
-      email: userInfo.value.studentEmail,
+      email: userInfo.value.studentEmail || '',
       code: '',
-      fullName: userInfo.value.fullName,
-      major: userInfo.value.major,
+      fullName: userInfo.value.fullName || '',
+      major: userInfo.value.major || '',
     }
   }
   editDialogVisible.value = true
