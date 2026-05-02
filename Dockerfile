@@ -6,8 +6,7 @@ RUN npm ci --prefer-offline
 
 COPY . .
 
-ARG VITE_BASE_API=http://localhost:8080
-ENV VITE_BASE_API=$VITE_BASE_API
+COPY .env.prod .env.production
 
 RUN npm run build
 
