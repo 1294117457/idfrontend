@@ -31,7 +31,7 @@
               </el-menu-item>
             </el-sub-menu>
 
-            <el-menu-item v-else :index="item.path">
+            <el-menu-item v-else :index="item.path" @click="router.push('/home/' + item.path)">
               <component v-if="item.meta?.icon" :is="item.meta.icon" class="w-5 h-5 inline-block" />
               <span>{{ item.meta?.title || item.path }}</span>
             </el-menu-item>
