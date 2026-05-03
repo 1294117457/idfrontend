@@ -91,9 +91,6 @@ export interface StudentItem {
   major: string
   grade?: number
   graduationYear?: number
-  enrollmentYear?: number
-  email?: string
-  code?: string
 }
 
 /** 学生信息更新参数 */
@@ -102,9 +99,6 @@ export interface UpdateStudentItem {
   major?: string
   grade?: number
   graduationYear?: number
-  enrollmentYear?: number
-  email?: string
-  code?: string
 }
 
 /** 绑定返回 */
