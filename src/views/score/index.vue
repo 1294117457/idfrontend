@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
   import { ref, reactive, onMounted, computed, nextTick } from 'vue'
   import { ElMessage } from 'element-plus'
   import { Delete } from '@element-plus/icons-vue'
@@ -21,7 +21,7 @@
   } from '@/api/components/apiDemand'
   import { getUserInfo } from '@/api/components/apiProfile'
   import type { ProofFileItem } from '@/api/components/apiScore'
-  import { agentStreamChat, agentResumeStream, type AgentStreamCallbacks } from '@/api/components/apiAIagent'
+  import { agentStreamChat, agentResumeStream, type AgentStreamCallbacks } from '@/api/components/apiAIchat'
   import { marked } from 'marked'
   import DOMPurify from 'dompurify'
   
@@ -694,7 +694,7 @@ const getConversionRangeText = (): string => {
       // 信息补充 → 走 resume（恢复被 interrupt 的 askForMoreNode）
       aiController = agentResumeStream(aiSessionId.value, msg, buildAiCallbacks(idx))
     } else {
-      aiController = agentStreamChat(msg, aiSessionId.value, file ?? undefined, buildAiCallbacks(idx))
+      aiController = agentStreamChat(msg, aiSessionId.value, file ?? undefined, buildAiCallbacks(idx), 'apply')
     }
   }
 

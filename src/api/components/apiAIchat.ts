@@ -206,20 +206,22 @@ async function consumeSSE(response: Response, callbacks?: AgentStreamCallbacks) 
 }
 
 /**
- * Agent ?????SSE?
- * ?? AbortController ???
+ * Agent 流式对话（SSE）
+ * @param intent 可选，传入 "apply" 时强制进入申请流程
+ * 返回 AbortController 可中断
  */
 export function agentStreamChat(
-  message: string, sessionId: string, file?: File, callbacks?: AgentStreamCallbacks,
+  message: string, sessionId: string, file?: File, callbacks?: AgentStreamCallbacks, intent?: string,
 ): AbortController {
   const controller = new AbortController()
   const token = localStorage.getItem('accessToken') || ''
   const formData = new FormData()
   formData.append('message', message)
   formData.append('sessionId', sessionId)
+  if (intent) formData.append('intent', intent)
   if (file) formData.append('file', file)
 
-  fetch(`${apiBaseUrl}/api/ai/agent/stream`, {
+  fetch(`${apiBaseUrl}/api/aichat/stream`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: formData,
@@ -240,7 +242,7 @@ export function agentResumeStream(
   const controller = new AbortController()
   const token = localStorage.getItem('accessToken') || ''
 
-  fetch(`${apiBaseUrl}/api/ai/agent/resume-stream`, {
+  fetch(`${apiBaseUrl}/api/aichat/resume-stream`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ sessionId, supplement }),
@@ -285,54 +287,54 @@ export interface MessageRecord {
 
 /** 获取会话列表 */
 export const getConversationsApi = async (limit = 50, offset = 0): Promise<ApiResponse<{ list: ConversationMeta[]; total: number }>> => {
-  const response = await apiClient.get(`${apiBaseUrl}/api/ai/conversation/list?limit=${limit}&offset=${offset}`)
+  const response = await apiClient.get(`${apiBaseUrl}/api/aichat/conversation/list?limit=${limit}&offset=${offset}`)
   return response.data
 }
 
 /** 搜索会话 */
 export const searchConversationsApi = async (keyword: string): Promise<ApiResponse<ConversationMeta[]>> => {
-  const response = await apiClient.get(`${apiBaseUrl}/api/ai/conversation/search?keyword=${encodeURIComponent(keyword)}`)
+  const response = await apiClient.get(`${apiBaseUrl}/api/aichat/conversation/search?keyword=${encodeURIComponent(keyword)}`)
   return response.data
 }
 
 /** 创建新会话（返回 sessionId） */
 export const createConversationApi = async (firstMessage = ''): Promise<ApiResponse<{ id: number; sessionId: string; title: string }>> => {
-  const response = await apiClient.post(`${apiBaseUrl}/api/ai/conversation/create`, { firstMessage })
+  const response = await apiClient.post(`${apiBaseUrl}/api/aichat/conversation/create`, { firstMessage })
   return response.data
 }
 
 /** 获取指定会话详情 */
 export const getConversationApi = async (sessionId: string): Promise<ApiResponse<ConversationMeta>> => {
-  const response = await apiClient.get(`${apiBaseUrl}/api/ai/conversation/${encodeURIComponent(sessionId)}`)
+  const response = await apiClient.get(`${apiBaseUrl}/api/aichat/conversation/${encodeURIComponent(sessionId)}`)
   return response.data
 }
 
 /** 获取指定会话的消息列表 */
 export const getMessagesApi = async (sessionId: string): Promise<ApiResponse<MessageRecord[]>> => {
-  const response = await apiClient.get(`${apiBaseUrl}/api/ai/conversation/${encodeURIComponent(sessionId)}/messages`)
+  const response = await apiClient.get(`${apiBaseUrl}/api/aichat/conversation/${encodeURIComponent(sessionId)}/messages`)
   return response.data
 }
 
 /** 更新会话标题 */
 export const updateConversationTitleApi = async (sessionId: string, title: string): Promise<ApiResponse<void>> => {
-  const response = await apiClient.put(`${apiBaseUrl}/api/ai/conversation/${encodeURIComponent(sessionId)}/title`, { title })
+  const response = await apiClient.put(`${apiBaseUrl}/api/aichat/conversation/${encodeURIComponent(sessionId)}/title`, { title })
   return response.data
 }
 
 /** 归档会话 */
 export const archiveConversationApi = async (sessionId: string): Promise<ApiResponse<void>> => {
-  const response = await apiClient.post(`${apiBaseUrl}/api/ai/conversation/${encodeURIComponent(sessionId)}/archive`)
+  const response = await apiClient.post(`${apiBaseUrl}/api/aichat/conversation/${encodeURIComponent(sessionId)}/archive`)
   return response.data
 }
 
 /** 删除会话 */
 export const deleteConversationApi = async (sessionId: string): Promise<ApiResponse<void>> => {
-  const response = await apiClient.delete(`${apiBaseUrl}/api/ai/conversation/${encodeURIComponent(sessionId)}`)
+  const response = await apiClient.delete(`${apiBaseUrl}/api/aichat/conversation/${encodeURIComponent(sessionId)}`)
   return response.data
 }
 
 /** 清空会话消息（保留会话） */
 export const clearMessagesApi = async (sessionId: string): Promise<ApiResponse<void>> => {
-  const response = await apiClient.delete(`${apiBaseUrl}/api/ai/conversation/${encodeURIComponent(sessionId)}/messages`)
+  const response = await apiClient.delete(`${apiBaseUrl}/api/aichat/conversation/${encodeURIComponent(sessionId)}/messages`)
   return response.data
 }

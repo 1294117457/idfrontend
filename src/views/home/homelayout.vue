@@ -24,7 +24,7 @@
 <script lang="ts" setup>
 import { ref } from 'vue'
 import TOPBAR from './component/TopBar.vue'
-import AiAssistant from '@/views/ai-agent/index.vue'
+import AiAssistant from '@/views/ai-chat/index.vue'
 
 const scrollContainer = ref<HTMLElement | null>(null)
 const isScrolled = ref(false)

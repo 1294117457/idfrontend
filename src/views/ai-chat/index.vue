@@ -149,22 +149,19 @@
                 暂无历史对话
               </div>
               <div v-else>
-                <!-- 按日期分组 -->
-                <div v-for="(group, date) in groupedConversations" :key="date">
-                  <div class="px-3 py-1.5 text-xs text-gray-400 bg-slate-50 sticky top-0">
-                    {{ date }}
-                  </div>
-                  <div
-                    v-for="conv in group"
-                    :key="conv.session_id"
-                    @click="handleSelectConversation(conv)"
-                    class="px-3 py-2.5 border-b border-slate-100 cursor-pointer hover:bg-indigo-50 transition-colors"
-                    :class="{ 'bg-indigo-50 border-l-2 border-l-indigo-500': currentSessionId === conv.session_id }"
-                  >
-                    <div class="flex items-center justify-between">
-                      <span class="text-sm font-medium text-slate-800 truncate max-w-[75%]">
-                        {{ conv.title }}
-                      </span>
+                <div
+                  v-for="conv in displayConversations"
+                  :key="conv.session_id"
+                  @click="handleSelectConversation(conv)"
+                  class="px-3 py-2.5 border-b border-slate-100 cursor-pointer hover:bg-indigo-50 transition-colors"
+                  :class="{ 'bg-indigo-50 border-l-2 border-l-indigo-500': currentSessionId === conv.session_id }"
+                >
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-slate-800 truncate max-w-[60%]">
+                      {{ conv.title }}
+                    </span>
+                    <div class="flex items-center gap-1">
+                      <span class="text-xs text-gray-400">{{ formatTime(conv.updated_at) }}</span>
                       <button
                         @click.stop="handleDeleteConversation(conv)"
                         class="text-gray-300 hover:text-red-400 transition-colors p-0.5"
@@ -176,9 +173,9 @@
                         </svg>
                       </button>
                     </div>
-                    <div class="text-xs text-gray-400 mt-0.5 truncate">
-                      {{ conv.last_message || '新对话' }}
-                    </div>
+                  </div>
+                  <div class="text-xs text-gray-400 mt-0.5 truncate">
+                    {{ conv.last_message || '新对话' }}
                   </div>
                 </div>
               </div>
@@ -289,7 +286,7 @@
           <div v-if="!isHistoryOpen" class="border-t p-3">
             <div v-if="isContextLimitReached" class="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-2 flex items-center justify-between">
               <span>上下文已达上限</span>
-              <button @click="handleClearHistory" class="text-amber-700 font-medium hover:underline">开启新对话</button>
+              <button @click="handleNewConversation" class="text-amber-700 font-medium hover:underline">开启新对话</button>
             </div>
             <div class="flex items-center gap-2">
               <input
@@ -323,8 +320,8 @@
   
   <script setup lang="ts">
   import { ref, reactive, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
-  import { agentStreamChat, agentResumeStream } from '@/api/components/apiAIagent'
-  import type { AgentStreamCallbacks } from '@/api/components/apiAIagent'
+  import { agentStreamChat, agentResumeStream } from '@/api/components/apiAIchat'
+  import type { AgentStreamCallbacks } from '@/api/components/apiAIchat'
   import {
     getConversationsApi,
     createConversationApi,
@@ -333,7 +330,7 @@
     searchConversationsApi,
     type ConversationMeta,
     type MessageRecord,
-  } from '@/api/components/apiAIagent'
+  } from '@/api/components/apiAIchat'
   import { ElMessage } from 'element-plus'
   import { marked } from 'marked'
   import DOMPurify from 'dompurify'
@@ -643,9 +640,11 @@
     if (currentSessionId.value) return
     try {
       const res = await createConversationApi(firstMessage)
-      if (res.code === 200 && res.data) {
-        currentConversationId.value = res.data.id
-        currentSessionId.value = res.data.sessionId
+      // 响应拦截器已处理非 200 的情况，走到这里即成功
+      const data = (res as any).data
+      if (data && data.sessionId) {
+        currentConversationId.value = data.id
+        currentSessionId.value = data.sessionId
         // 写入 localStorage
         localStorage.setItem('ai-last-session-id', currentSessionId.value)
       }
@@ -677,9 +676,26 @@
       const res = keyword
         ? await searchConversationsApi(keyword)
         : await getConversationsApi()
-      if (res.code === 200) {
-        conversations.value = keyword ? (res.data as ConversationMeta[]) : (res.data as { list: ConversationMeta[] }).list
+
+      // 兼容两种响应格式：
+      // 1. 标准格式 { code: 200, msg: '...', data: { list } } ← 来自 idbackend ResultVo 包装
+      // 2. 直接返回数组 []（无外层包装的极端情况）
+      let list: ConversationMeta[] = []
+      if (Array.isArray(res)) {
+        // 响应直接是数组
+        list = res
+      } else if (res && Array.isArray((res as any).data?.list)) {
+        // 标准包装格式：{ code, msg, data: { list } }
+        list = (res as any).data.list
+      } else if (res && Array.isArray((res as any).data)) {
+        // data 本身就是数组
+        list = (res as any).data
+      } else if (res && Array.isArray((res as any).list)) {
+        // 无 code 外层包装：{ list }
+        list = (res as any).list
       }
+
+      conversations.value = list
     } catch (e) {
       console.error('加载会话列表失败', e)
     } finally {
@@ -711,16 +727,22 @@
     isLoadingHistory.value = true
     try {
       const res = await getMessagesApi(conv.session_id)
-      if (res.code === 200) {
-        const msgs = res.data as MessageRecord[]
-        messages.value = msgs.map(m => ({
-          role: m.role === 'user' ? 'user' : m.role === 'interrupt' ? 'interrupt' : 'assistant',
-          content: m.content,
-        }))
-        currentSessionId.value = conv.session_id
-        currentConversationId.value = conv.id
-        localStorage.setItem('ai-last-session-id', conv.session_id)
+      // 兼容两种响应格式：
+      // 1. 标准格式 { code: 200, msg: '...', data: [...] }
+      // 2. 直接返回数组 []（无外层包装的极端情况）
+      let msgs: MessageRecord[] = []
+      if (Array.isArray(res)) {
+        msgs = res
+      } else if (res && Array.isArray((res as any).data)) {
+        msgs = (res as any).data
       }
+      messages.value = msgs.map(m => ({
+        role: m.role === 'user' ? 'user' : m.role === 'interrupt' ? 'interrupt' : 'assistant',
+        content: m.content,
+      }))
+      currentSessionId.value = conv.session_id
+      currentConversationId.value = conv.id
+      localStorage.setItem('ai-last-session-id', conv.session_id)
     } catch (e) {
       ElMessage.error('加载历史对话失败')
       console.error(e)
@@ -735,17 +757,17 @@
   // 删除会话
   const handleDeleteConversation = async (conv: ConversationMeta) => {
     try {
-      const res = await deleteConversationApi(conv.session_id)
-      if (res.code === 200) {
-        conversations.value = conversations.value.filter(c => c.session_id !== conv.session_id)
-        ElMessage.success('删除成功')
-        if (currentSessionId.value === conv.session_id) {
-          await handleNewConversation()
-        }
+      await deleteConversationApi(conv.session_id)
+      // 响应拦截器已处理非 200 的情况（ElMessage.error + reject）
+      // 走到这里说明成功了
+      conversations.value = conversations.value.filter(c => c.session_id !== conv.session_id)
+      ElMessage.success('删除成功')
+      if (currentSessionId.value === conv.session_id) {
+        await handleNewConversation()
       }
-    } catch (e) {
-      ElMessage.error('删除失败')
-      console.error(e)
+    } catch (e: any) {
+      // 可能是网络错误，或响应拦截器 reject 的 { code, msg } 对象
+      console.error('删除会话失败', e)
     }
   }
   
@@ -759,27 +781,24 @@
     },
   )
 
-  // 对话按日期分组
+  // 格式化时间显示
+  const formatTime = (iso: string): string => {
+    const date = new Date(iso)
+    const now = new Date()
+    if (date.toDateString() === now.toDateString()) {
+      return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+    }
+    const yesterday = new Date(now.getTime() - 86400000)
+    if (date.toDateString() === yesterday.toDateString()) {
+      return '昨天'
+    }
+    return `${date.getMonth() + 1}月${date.getDate()}日`
+  }
+
+  // 对话列表（直接使用全部数据，不再按日期分组）
   const displayConversations = computed(() => conversations.value)
 
-  const groupedConversations = computed(() => {
-    const groups: Record<string, ConversationMeta[]> = {}
-    const now = new Date()
-    const today = now.toISOString().slice(0, 10)
-    const yesterday = new Date(now.getTime() - 86400000).toISOString().slice(0, 10)
-
-    for (const conv of displayConversations.value) {
-      const date = conv.updated_at.slice(0, 10)
-      let label = date
-      if (date === today) label = '今天'
-      else if (date === yesterday) label = '昨天'
-      else label = `${date.slice(5, 7)}月${date.slice(8, 10)}日`
-
-      if (!groups[label]) groups[label] = []
-      groups[label].push(conv)
-    }
-    return groups
-  })
+  
   
   // 生命周期
   onMounted(async () => {
@@ -790,15 +809,19 @@
     if (lastSessionId) {
       try {
         const res = await getMessagesApi(lastSessionId)
-        if (res.code === 200) {
-          const msgs = res.data as MessageRecord[]
-          if (msgs.length > 0) {
-            messages.value = msgs.map(m => ({
-              role: m.role === 'user' ? 'user' : m.role === 'interrupt' ? 'interrupt' : 'assistant',
-              content: m.content,
-            }))
-            currentSessionId.value = lastSessionId
-          }
+        // 兼容两种响应格式
+        let msgs: MessageRecord[] = []
+        if (Array.isArray(res)) {
+          msgs = res
+        } else if (res && Array.isArray((res as any).data)) {
+          msgs = (res as any).data
+        }
+        if (msgs.length > 0) {
+          messages.value = msgs.map(m => ({
+            role: m.role === 'user' ? 'user' : m.role === 'interrupt' ? 'interrupt' : 'assistant',
+            content: m.content,
+          }))
+          currentSessionId.value = lastSessionId
         }
       } catch {
         localStorage.removeItem('ai-last-session-id')
