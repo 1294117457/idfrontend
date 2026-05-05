@@ -102,24 +102,100 @@
               </div>
               <span class="font-semibold">AI 助手</span>
             </div>
-            <button
-              @click="handleClearHistory"
-              class="text-white/80 hover:text-white text-sm flex items-center gap-1"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-              新对话
-            </button>
+            <div class="flex items-center gap-2">
+              <!-- 会话列表按钮 -->
+              <button
+                @click="toggleHistory"
+                class="text-white/80 hover:text-white text-sm flex items-center gap-1"
+                title="历史会话"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                </svg>
+              </button>
+              <!-- 新建对话按钮 -->
+              <button
+                @click="handleNewConversation"
+                class="text-white/80 hover:text-white text-sm flex items-center gap-1"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 4v16m8-8H4" />
+                </svg>
+                新对话
+              </button>
+            </div>
+          </div>
+
+          <!-- 会话历史侧边栏 -->
+          <div v-if="isHistoryOpen" class="flex flex-col overflow-hidden" style="height: calc(100% - 56px)">
+            <!-- 搜索栏 -->
+            <div class="px-3 py-2 border-b border-slate-100">
+              <input
+                v-model="searchKeyword"
+                @keyup.enter="handleSearch"
+                type="text"
+                placeholder="搜索历史对话..."
+                class="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+            </div>
+            <!-- 会话列表 -->
+            <div class="flex-1 overflow-y-auto">
+              <div v-if="isLoadingHistory" class="flex justify-center py-6 text-sm text-gray-400">
+                加载中...
+              </div>
+              <div v-else-if="displayConversations.length === 0" class="flex justify-center py-6 text-sm text-gray-400">
+                暂无历史对话
+              </div>
+              <div v-else>
+                <!-- 按日期分组 -->
+                <div v-for="(group, date) in groupedConversations" :key="date">
+                  <div class="px-3 py-1.5 text-xs text-gray-400 bg-slate-50 sticky top-0">
+                    {{ date }}
+                  </div>
+                  <div
+                    v-for="conv in group"
+                    :key="conv.session_id"
+                    @click="handleSelectConversation(conv)"
+                    class="px-3 py-2.5 border-b border-slate-100 cursor-pointer hover:bg-indigo-50 transition-colors"
+                    :class="{ 'bg-indigo-50 border-l-2 border-l-indigo-500': currentSessionId === conv.session_id }"
+                  >
+                    <div class="flex items-center justify-between">
+                      <span class="text-sm font-medium text-slate-800 truncate max-w-[75%]">
+                        {{ conv.title }}
+                      </span>
+                      <button
+                        @click.stop="handleDeleteConversation(conv)"
+                        class="text-gray-300 hover:text-red-400 transition-colors p-0.5"
+                        title="删除"
+                      >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div class="text-xs text-gray-400 mt-0.5 truncate">
+                      {{ conv.last_message || '新对话' }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- 关闭按钮 -->
+            <div class="px-3 py-2 border-t border-slate-100">
+              <button
+                @click="isHistoryOpen = false"
+                class="w-full text-center text-sm text-gray-400 hover:text-gray-600 py-1"
+              >
+                关闭
+              </button>
+            </div>
           </div>
   
-          <!-- 消息列表 -->
-          <div ref="messageContainer" class="flex-1 overflow-y-auto p-4 space-y-4">
+          <!-- 消息列表（仅在非历史模式时显示） -->
+          <div v-if="!isHistoryOpen" ref="messageContainer" class="flex-1 overflow-y-auto p-4 space-y-4">
             <!-- 欢迎消息 -->
             <div v-if="messages.length === 0" class="text-center text-gray-400 mt-8">
               <div class="w-16 h-16 mx-auto mb-4 rounded-full overflow-hidden border-2 border-gray-200">
@@ -209,8 +285,8 @@
             </div>
           </div>
   
-          <!-- 输入区域 -->
-          <div class="border-t p-3">
+          <!-- 输入区域（仅在非历史模式时显示） -->
+          <div v-if="!isHistoryOpen" class="border-t p-3">
             <div v-if="isContextLimitReached" class="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-2 flex items-center justify-between">
               <span>上下文已达上限</span>
               <button @click="handleClearHistory" class="text-amber-700 font-medium hover:underline">开启新对话</button>
@@ -249,6 +325,15 @@
   import { ref, reactive, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
   import { agentStreamChat, agentResumeStream } from '@/api/components/apiAIagent'
   import type { AgentStreamCallbacks } from '@/api/components/apiAIagent'
+  import {
+    getConversationsApi,
+    createConversationApi,
+    getMessagesApi,
+    deleteConversationApi,
+    searchConversationsApi,
+    type ConversationMeta,
+    type MessageRecord,
+  } from '@/api/components/apiAIagent'
   import { ElMessage } from 'element-plus'
   import { marked } from 'marked'
   import DOMPurify from 'dompurify'
@@ -418,6 +503,16 @@
     }
   }
   
+  // ==================== 会话管理状态 ====================
+  const conversations = ref<ConversationMeta[]>([])
+  const isHistoryOpen = ref(false)
+  const isLoadingHistory = ref(false)
+  const searchKeyword = ref('')
+  const isSearching = ref(false)
+  // 当前会话信息
+  const currentSessionId = ref<string>('')
+  const currentConversationId = ref<number | null>(null)
+
   // ==================== 原有状态 ====================
   const isOpen = ref(false)
   const isLoading = ref(false)
@@ -427,7 +522,6 @@
   const hasNewMessage = ref(false)
   const inputMessage = ref('')
   const supplementInput = ref('')
-  const currentSessionId = ref('sess_' + Date.now())
   const messages = ref<Message[]>([])
   const messageContainer = ref<HTMLElement | null>(null)
   let streamController: AbortController | null = null
@@ -501,9 +595,14 @@
     },
   })
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const message = inputMessage.value.trim()
     if (!message || isLoading.value) return
+
+    // 如果当前没有会话，先创建一个
+    if (!currentSessionId.value) {
+      await ensureConversation()
+    }
 
     messages.value.push({ role: 'user', content: message })
     inputMessage.value = ''
@@ -539,7 +638,24 @@
     )
   }
 
-  const handleClearHistory = () => {
+  // 确保有会话，返回 sessionId
+  const ensureConversation = async (firstMessage = ''): Promise<void> => {
+    if (currentSessionId.value) return
+    try {
+      const res = await createConversationApi(firstMessage)
+      if (res.code === 200 && res.data) {
+        currentConversationId.value = res.data.id
+        currentSessionId.value = res.data.sessionId
+        // 写入 localStorage
+        localStorage.setItem('ai-last-session-id', currentSessionId.value)
+      }
+    } catch (e) {
+      console.error('创建会话失败', e)
+    }
+  }
+
+  // 新建对话
+  const handleNewConversation = async () => {
     streamController?.abort()
     streamController = null
     messages.value = []
@@ -548,8 +664,89 @@
     isInterrupted.value = false
     isContextLimitReached.value = false
     supplementInput.value = ''
-    // 生成新的 sessionId
-    currentSessionId.value = 'sess_' + Date.now()
+    currentSessionId.value = ''
+    currentConversationId.value = null
+    localStorage.removeItem('ai-last-session-id')
+    isHistoryOpen.value = false
+  }
+
+  // 加载会话列表
+  const loadConversations = async (keyword?: string) => {
+    isLoadingHistory.value = true
+    try {
+      const res = keyword
+        ? await searchConversationsApi(keyword)
+        : await getConversationsApi()
+      if (res.code === 200) {
+        conversations.value = keyword ? (res.data as ConversationMeta[]) : (res.data as { list: ConversationMeta[] }).list
+      }
+    } catch (e) {
+      console.error('加载会话列表失败', e)
+    } finally {
+      isLoadingHistory.value = false
+    }
+  }
+
+  // 切换历史侧边栏
+  const toggleHistory = () => {
+    isHistoryOpen.value = !isHistoryOpen.value
+    if (isHistoryOpen.value) {
+      loadConversations()
+    }
+  }
+
+  // 搜索会话
+  const handleSearch = () => {
+    if (searchKeyword.value.trim()) {
+      loadConversations(searchKeyword.value.trim())
+    } else {
+      loadConversations()
+    }
+  }
+
+  // 选择历史会话
+  const handleSelectConversation = async (conv: ConversationMeta) => {
+    streamController?.abort()
+    streamController = null
+    isLoadingHistory.value = true
+    try {
+      const res = await getMessagesApi(conv.session_id)
+      if (res.code === 200) {
+        const msgs = res.data as MessageRecord[]
+        messages.value = msgs.map(m => ({
+          role: m.role === 'user' ? 'user' : m.role === 'interrupt' ? 'interrupt' : 'assistant',
+          content: m.content,
+        }))
+        currentSessionId.value = conv.session_id
+        currentConversationId.value = conv.id
+        localStorage.setItem('ai-last-session-id', conv.session_id)
+      }
+    } catch (e) {
+      ElMessage.error('加载历史对话失败')
+      console.error(e)
+    } finally {
+      isLoadingHistory.value = false
+    }
+    isHistoryOpen.value = false
+    isContextLimitReached.value = false
+    isInterrupted.value = false
+  }
+
+  // 删除会话
+  const handleDeleteConversation = async (conv: ConversationMeta) => {
+    try {
+      const res = await deleteConversationApi(conv.session_id)
+      if (res.code === 200) {
+        conversations.value = conversations.value.filter(c => c.session_id !== conv.session_id)
+        ElMessage.success('删除成功')
+        if (currentSessionId.value === conv.session_id) {
+          await handleNewConversation()
+        }
+      }
+    } catch (e) {
+      ElMessage.error('删除失败')
+      console.error(e)
+    }
   }
   
   // 监听消息变化
@@ -561,10 +758,52 @@
       }
     },
   )
+
+  // 对话按日期分组
+  const displayConversations = computed(() => conversations.value)
+
+  const groupedConversations = computed(() => {
+    const groups: Record<string, ConversationMeta[]> = {}
+    const now = new Date()
+    const today = now.toISOString().slice(0, 10)
+    const yesterday = new Date(now.getTime() - 86400000).toISOString().slice(0, 10)
+
+    for (const conv of displayConversations.value) {
+      const date = conv.updated_at.slice(0, 10)
+      let label = date
+      if (date === today) label = '今天'
+      else if (date === yesterday) label = '昨天'
+      else label = `${date.slice(5, 7)}月${date.slice(8, 10)}日`
+
+      if (!groups[label]) groups[label] = []
+      groups[label].push(conv)
+    }
+    return groups
+  })
   
   // 生命周期
-  onMounted(() => {
+  onMounted(async () => {
     loadPosition()
+
+    // 恢复最后会话
+    const lastSessionId = localStorage.getItem('ai-last-session-id')
+    if (lastSessionId) {
+      try {
+        const res = await getMessagesApi(lastSessionId)
+        if (res.code === 200) {
+          const msgs = res.data as MessageRecord[]
+          if (msgs.length > 0) {
+            messages.value = msgs.map(m => ({
+              role: m.role === 'user' ? 'user' : m.role === 'interrupt' ? 'interrupt' : 'assistant',
+              content: m.content,
+            }))
+            currentSessionId.value = lastSessionId
+          }
+        }
+      } catch {
+        localStorage.removeItem('ai-last-session-id')
+      }
+    }
 
     // 3秒后隐藏拖拽提示
     setTimeout(() => {
