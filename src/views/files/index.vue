@@ -298,11 +298,8 @@ const confirmRename = async () => {
   const newFullName = renameForm.newName.trim() + file.fileExtension
   const response = await updateFile(file.id, { originalName: newFullName })
   if (response.code === 200) {
-    ElMessage.success('重命名成功')
     renameDialogVisible.value = false
     await loadFiles()
-  } else {
-    ElMessage.error(response.msg || '重命名失败')
   }
 }
 

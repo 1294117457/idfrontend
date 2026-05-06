@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { STORAGE_KEYS } from '@common/constants/storage'
 import homeRoutes from './home'
 import loginRoutes from './login'
@@ -25,7 +24,6 @@ router.beforeEach(async (to) => {
   }
 
   if (!token) {
-    ElMessage.warning('请先登录')
     return '/login'
   }
 

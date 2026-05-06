@@ -84,12 +84,7 @@
         const response = await getAvailableTemplates()
         if (response.code === 200) {
           allTemplates.value = response.data || []
-        } else {
-          ElMessage.error('加载模板失败')
         }
-      } catch (error) {
-        console.error('加载模板失败:', error)
-        ElMessage.error('加载模板失败')
       } finally {
         loading.value = false
       }
@@ -112,10 +107,7 @@
         matchedConversionRule.value = null
     
         const response = await getTemplateDetail(template.id)
-        if (response.code !== 200) {
-          ElMessage.error('获取模板详情失败')
-          return
-        }
+        if (response.code !== 200) return
     
         const templateDetail = response.data
         const rules = templateDetail.rules || []
@@ -145,7 +137,6 @@
         applyDialogVisible.value = true
       } catch (error) {
         console.error('打开申请弹窗失败:', error)
-        ElMessage.error('打开申请弹窗失败')
       }
     }
     
@@ -367,13 +358,8 @@
         submitting.value = true
         const response = await submitBonusApplication(submitData as any)
         
-        if (response.code === 200) {
-          ElMessage.success('提交成功!')
-          applyDialogVisible.value = false
-          resetApplyForm()
-        } else {
-          ElMessage.error('提交失败: ' + (response.msg || '未知错误'))
-        }
+        applyDialogVisible.value = false
+        resetApplyForm()
       } catch (error: any) {
         console.error('提交申请失败:', error)
         ElMessage.error('提交申请失败')

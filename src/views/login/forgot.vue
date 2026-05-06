@@ -89,18 +89,15 @@ const sendCode = async () => {
   try {
     const response = await sendResetCode(form.value.username)
     if (response.code === 200) {
-      ElMessage.success('验证码已发送，请检查邮箱')
       codeSent.value = true
       countdown.value = 60
       const timer = setInterval(() => {
         countdown.value--
         if (countdown.value <= 0) clearInterval(timer)
       }, 1000)
-    } else {
-      ElMessage.error(response.msg || '发送失败')
     }
   } catch (e) {
-    ElMessage.error('发送验证码失败，请稍后重试')
+    console.error('发送验证码失败:', e)
   }
 }
 
@@ -121,15 +118,10 @@ const handleResetPassword = async () => {
 
   submitting.value = true
   try {
-    const response = await resetPassword(form.value)
-    if (response.code === 200) {
-      ElMessage.success('密码重置成功，请重新登录')
-      setTimeout(() => router.push('/login'), 1500)
-    } else {
-      ElMessage.error(response.msg || '重置失败')
-    }
+    await resetPassword(form.value)
+    setTimeout(() => router.push('/login'), 1500)
   } catch (e) {
-    ElMessage.error('重置失败，请稍后重试')
+    console.error('重置失败:', e)
   } finally {
     submitting.value = false
   }

@@ -582,7 +582,7 @@
       if (!messages.value[aiMsgIndex].content) {
         messages.value[aiMsgIndex].content = '抱歉，遇到了一些问题，请稍后再试。'
       }
-      ElMessage.error(msg || '发送失败')
+      // SSE错误由回调传入，已由拦截器处理，可记录日志
     },
     onDone() {
       isLoading.value = false
@@ -744,8 +744,7 @@
       currentConversationId.value = conv.id
       localStorage.setItem('ai-last-session-id', conv.session_id)
     } catch (e) {
-      ElMessage.error('加载历史对话失败')
-      console.error(e)
+      console.error('加载历史对话失败', e)
     } finally {
       isLoadingHistory.value = false
     }
@@ -761,7 +760,6 @@
       // 响应拦截器已处理非 200 的情况（ElMessage.error + reject）
       // 走到这里说明成功了
       conversations.value = conversations.value.filter(c => c.session_id !== conv.session_id)
-      ElMessage.success('删除成功')
       if (currentSessionId.value === conv.session_id) {
         await handleNewConversation()
       }

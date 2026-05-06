@@ -272,12 +272,9 @@
       const response = await getMyRecords()
       if (response.code === 200) {
         myRecords.value = response.data || []
-      } else {
-        ElMessage.error(response.msg || '加载失败')
       }
     } catch (error) {
-      console.error('加载记录失败:', error)
-      ElMessage.error('加载记录失败')
+      console.error('加载申请记录失败:', error)
     }
   }
   
@@ -298,17 +295,14 @@
       
       if (response.code === 200) {
         proofsList.value = response.data.proofs || []
-      } else {
-        ElMessage.error(response.msg || '加载证明材料失败')
       }
     } catch (error) {
       console.error('加载证明材料失败:', error)
-      ElMessage.error('加载证明材料失败')
     } finally {
       proofsLoading.value = false
     }
   }
-  
+
   // ✅ 预览证明材料
   const handlePreviewProof = async (fileId: number) => {
     try {
@@ -339,16 +333,11 @@
       await ElMessageBox.confirm('确定要重新提交此申请吗？所有证明材料将重置为待审核状态。', '提示', {
         type: 'warning'
       })
-      const response = await resubmitApplication(recordId)
-      if (response.code === 200) {
-        ElMessage.success('已重新提交，等待审核')
-        await loadMyRecords()
-      } else {
-        ElMessage.error(response.msg || '提交失败')
-      }
+      await resubmitApplication(recordId)
+      await loadMyRecords()
     } catch (error: any) {
       if (error !== 'cancel') {
-        ElMessage.error('提交失败')
+        console.error('重新提交失败:', error)
       }
     }
   }
@@ -366,20 +355,15 @@
       await ElMessageBox.confirm('确定要重新提交此证明材料吗？审核记录将被清空。', '提示', {
         type: 'warning'
       })
-      const response = await resubmitProof(proof.id, {
+      await resubmitProof(proof.id, {
         proofFileId: proof.proofFileId,
         proofValue: proof.proofValue,
         remark: proof.remark
       })
-      if (response.code === 200) {
-        ElMessage.success('重新提交成功，等待审核')
-        await loadProofs(selectedRecord.value.id)
-      } else {
-        ElMessage.error(response.msg || '提交失败')
-      }
+      await loadProofs(selectedRecord.value.id)
     } catch (error: any) {
       if (error !== 'cancel') {
-        ElMessage.error('提交失败')
+        console.error('重新提交证明材料失败:', error)
       }
     }
   }

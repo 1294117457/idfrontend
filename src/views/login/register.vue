@@ -59,16 +59,13 @@ const nextStep = async () => {
   try {
     const response = await sentEmailCode(formData.value.username);
     if (response.code !== 200) {
-      ElMessage.error(response.msg || '发送验证码失败，请重试');
       refreshCaptcha();
       return;
     }
-    ElMessage.success('验证码已发送至邮箱，请检查');
     step.value = 2;
     startCountdown();
   } catch (e) {
     console.error('发送验证码失败', e);
-    ElMessage.error('发送失败，请检查网络重试');
   }
 };
 
@@ -110,15 +107,9 @@ const startCountdown = () => {
 const resendCode = async () => {
   startCountdown()
   try {
-    const response = await sentEmailCode(formData.value.username);
-    if (response.code !== 200) {
-      ElMessage.error(response.msg || '发送验证码失败，请重试');
-      return;
-    }
-    ElMessage.success('验证码已重新发送至邮箱，请检查');
+    await sentEmailCode(formData.value.username);
   } catch (e) {
     console.error('发送验证码失败', e);
-    ElMessage.error('发送失败，请检查网络重试');
   }
 }
 
@@ -136,18 +127,12 @@ const verifyCodeStep = async () => {
   }
 
   try {
-    const response = await regesterRequest(registerData);
-    if (response.code === 200) {
-      ElMessage.success('注册成功，请登录')
-      setTimeout(() => {
-        router.push('/login')
-      }, 1500)
-    } else {
-      ElMessage.error(response.msg || '注册失败')
-    }
+    await regesterRequest(registerData);
+    setTimeout(() => {
+      router.push('/login')
+    }, 1500)
   } catch (error) {
     console.error('注册请求失败', error)
-    ElMessage.error('注册失败，请稍后重试')
   }
 }
 

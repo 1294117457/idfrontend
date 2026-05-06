@@ -206,12 +206,9 @@
       if (response.code === 200) {
         myRecords.value = response.data || []
         console.log('✅ 加载到的记录数:', myRecords.value.length)
-      } else {
-        ElMessage.error('加载记录失败: ' + (response.msg || '未知错误'))
       }
     } catch (error) {
-      console.error('❌ 加载记录失败:', error)
-      ElMessage.error('加载记录失败')
+      console.error('加载记录失败:', error)
     }
   }
   
@@ -263,17 +260,11 @@
       
       const response = await cancelBonusRecord(recordId)
       
-      if (response.code === 200) {
-        ElMessage.success('取消成功')
-        showDetailDialog.value = false
-        await loadMyRecords()
-      } else {
-        ElMessage.error('取消失败: ' + (response.msg || '未知错误'))
-      }
+      showDetailDialog.value = false
+      await loadMyRecords()
     } catch (error) {
       if (error !== 'cancel') {
         console.error('❌ 取消申请失败:', error)
-        ElMessage.error('取消申请失败')
       }
     }
   }

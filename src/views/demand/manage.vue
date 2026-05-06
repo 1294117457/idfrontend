@@ -223,19 +223,15 @@ const sendCode = async () => {
   
   try {
     const response = await sendEmailCode(bindForm.value.email as string)
-    if (response.code === 200) {
-      ElMessage.success('验证码已发送')
-      // 开始倒计时
-      countdown.value = 60
-      const timer = setInterval(() => {
-        countdown.value--
-        if (countdown.value <= 0) {
-          clearInterval(timer)
-        }
-      }, 1000)
-    }
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.msg || '发送验证码失败')
+    // 验证码发送成功提示由拦截器处理
+    // 开始倒计时
+    countdown.value = 60
+    const timer = setInterval(() => {
+      countdown.value--
+      if (countdown.value <= 0) {
+        clearInterval(timer)
+      }
+    }, 1000)
   }
 }
 
@@ -251,20 +247,16 @@ const sendEditCode = async () => {
   }
   
   try {
-    const response = await sendEmailCode(editForm.value.email as string)
-    if (response.code === 200) {
-      ElMessage.success('验证码已发送')
-      // 开始倒计时
-      editCountdown.value = 60
-      const timer = setInterval(() => {
-        editCountdown.value--
-        if (editCountdown.value <= 0) {
-          clearInterval(timer)
-        }
-      }, 1000)
-    }
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.msg || '发送验证码失败')
+    await sendEmailCode(editForm.value.email as string)
+    // 验证码发送成功提示由拦截器处理
+    // 开始倒计时
+    editCountdown.value = 60
+    const timer = setInterval(() => {
+      editCountdown.value--
+      if (editCountdown.value <= 0) {
+        clearInterval(timer)
+      }
+    }, 1000)
   }
 }
 
@@ -277,13 +269,9 @@ const bindStudent = async () => {
   
   submitting.value = true
   try {
-    const response = await bindStudentInfo(bindForm.value)
-    if (response.code === 200) {
-      ElMessage.success('学生信息绑定成功')
-      await fetchUserInfo()
-    }
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.msg || '绑定失败')
+    await bindStudentInfo(bindForm.value)
+    await fetchUserInfo()
+  }
   } finally {
     submitting.value = false
   }
@@ -311,14 +299,10 @@ const updateStudent = async () => {
   
   submitting.value = true
   try {
-    const response = await updateStudentInfo(editForm.value)
-    if (response.code === 200) {
-      ElMessage.success('学生信息更新成功')
-      editDialogVisible.value = false
-      await fetchUserInfo()
-    }
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.msg || '更新失败')
+    await updateStudentInfo(editForm.value)
+    editDialogVisible.value = false
+    await fetchUserInfo()
+  }
   } finally {
     submitting.value = false
   }

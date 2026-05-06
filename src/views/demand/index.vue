@@ -233,12 +233,7 @@ const openDemandDialog = async () => {
       templates.value = response.data || []
       initDemandForm()
       demandDialogVisible.value = true
-    } else {
-      ElMessage.error('加载模板失败')
     }
-  } catch (error) {
-    console.error('加载模板失败:', error)
-    ElMessage.error('加载模板失败')
   } finally {
     loadingTemplates.value = false
   }
@@ -323,16 +318,10 @@ const handleSaveDemand = async () => {
     // ✅ 使用新的保存接口（传递 fileId 列表）
     const response = await saveDemandApplicationWithFileIds(applications, uploadProofFiles.value)
     
-    if (response.code === 200) {
-      ElMessage.success('保存成功!')
-      demandDialogVisible.value = false
-      await fetchUserInfo()
-    } else {
-      ElMessage.error('保存失败: ' + (response.msg || '未知错误'))
-    }
+    demandDialogVisible.value = false
+    await fetchUserInfo()
   } catch (error) {
     console.error('保存失败:', error)
-    ElMessage.error('保存失败')
   } finally {
     savingDemand.value = false
   }

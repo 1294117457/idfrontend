@@ -301,10 +301,7 @@ const handleCustomUpload = async (options: UploadRequestOptions) => {
     fileItems.value.push(newFile)
     emit('update:modelValue', [...fileItems.value])
     emit('upload-success', newFile)
-    
-    ElMessage.success('上传成功')
   } catch (error: any) {
-    ElMessage.error(error.message || '上传失败')
     emit('upload-error', error)
   } finally {
     uploading.value = false
@@ -349,12 +346,10 @@ const handlePreview = async (file: FileItem) => {
     if (response.code === 200) {
       previewUrl.value = response.data
     } else {
-      ElMessage.error('获取预览链接失败')
       currentPreviewType.value = 'unknown'
     }
   } catch (error) {
     console.error('预览失败:', error)
-    ElMessage.error('预览失败')
     currentPreviewType.value = 'unknown'
   } finally {
     previewLoading.value = false
@@ -383,9 +378,6 @@ const handleDownload = async (file: FileItem) => {
   downloadingFileId.value = file.fileId
   try {
     await downloadFileById(file.fileId, file.fileName)
-    ElMessage.success('下载成功')
-  } catch (error) {
-    ElMessage.error('下载失败')
   } finally {
     downloadingFileId.value = null
   }

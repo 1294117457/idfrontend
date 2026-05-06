@@ -81,7 +81,7 @@ apiClient.interceptors.response.use(
     }
 
     const method = response.config.method?.toLowerCase()
-    if (method !== 'get' && res.msg && res.msg !== '成功') {
+    if (method !== 'get' && res.msg) {
       ElMessage.success(res.msg)
     }
 

@@ -127,11 +127,7 @@
       }
       if (templateRes.code === 200) {
         allTemplates.value = templateRes.data
-      } else {
-        ElMessage.error('加载模板失败')
       }
-    } catch (error) {
-      ElMessage.error('加载模板失败')
     } finally {
       loading.value = false
     }
@@ -145,10 +141,7 @@
   
     try {
       const response = await getTemplateDetail(template.id)
-      if (response.code !== 200) {
-        ElMessage.error('获取模板详情失败')
-        return
-      }
+      if (response.code !== 200) return
   
       const detail = response.data
       currentTemplateRules.value = detail.rules || []
@@ -163,7 +156,6 @@
       applyDialogVisible.value = true
     } catch (error) {
       console.error('获取模板详情失败:', error)
-      ElMessage.error('获取模板详情失败')
     }
   }
   
@@ -442,22 +434,16 @@ const getConversionRangeText = (): string => {
 
     const response = await submitBonusApplication(submitData)
 
-    if (response.code === 200) {
-      ElMessage.success('提交成功')
-      applyDialogVisible.value = false
-      
-      // 重置表单
-      proofItems.value = []
-      applyForm.remark = ''
-      selectedAttributeValues.value = {}
-      conversionInput.value = 0
-      convertedScore.value = 0
-    } else {
-      ElMessage.error(response.msg || '提交失败')
-    }
+    applyDialogVisible.value = false
+    
+    // 重置表单
+    proofItems.value = []
+    applyForm.remark = ''
+    selectedAttributeValues.value = {}
+    conversionInput.value = 0
+    convertedScore.value = 0
   } catch (error: any) {
     console.error('提交失败:', error)
-    ElMessage.error(error.message || '提交失败')
   } finally {
     submitting.value = false
   }
@@ -537,11 +523,7 @@ const getConversionRangeText = (): string => {
         })
         uploadProofFiles.value = [...existingProofFiles.value]
         demandDialogVisible.value = true
-      } else {
-        ElMessage.error('加载需求模板失败')
       }
-    } catch {
-      ElMessage.error('加载需求模板失败')
     } finally {
       loadingDemand.value = false
     }
@@ -567,15 +549,8 @@ const getConversionRangeText = (): string => {
     savingDemand.value = true
     try {
       const res = await saveDemandApplicationWithFileIds(applications, uploadProofFiles.value)
-      if (res.code === 200) {
-        ElMessage.success('保存成功!')
-        demandDialogVisible.value = false
-        await loadDemandData()
-      } else {
-        ElMessage.error('保存失败: ' + (res.msg || '未知错误'))
-      }
-    } catch {
-      ElMessage.error('保存失败')
+      demandDialogVisible.value = false
+      await loadDemandData()
     } finally {
       savingDemand.value = false
     }
@@ -663,7 +638,6 @@ const getConversionRangeText = (): string => {
     onError(msg) {
       if (!aiMessages.value[aiMsgIdx].content)
         aiMessages.value[aiMsgIdx].content = '抱歉，AI 出现异常，请稍后重试。'
-      ElMessage.error(msg || '发送失败')
     },
     onDone() {
       aiLoading.value = false
